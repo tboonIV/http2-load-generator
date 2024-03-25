@@ -1,0 +1,12 @@
+[package]
+name = "http2-load-generator"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+h2 = "0.4"
+http = "1"
+log = "0.4"
+env_logger = { version = "0.10", default-features = false }
+chrono = "0.4"
