@@ -1,8 +1,11 @@
 use chrono::Local;
+use core::cell::RefCell;
 use h2::client;
 use http::Request;
 use std::error::Error;
 use std::io::Write;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread;
 use tokio::net::TcpStream;
 
@@ -32,9 +35,6 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     fetch_url().await?;
 
-    // TODO properly wait for the response
-    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
     Ok(())
 }
 
@@ -48,7 +48,11 @@ pub async fn fetch_url() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    for _ in 0..3 {
+    // let mut counter: u32 = 0;
+    let counter = Arc::new(Mutex::new(0u32));
+    let total_iteration = 5;
+
+    for _ in 0..total_iteration {
         let request = Request::builder()
             .uri("http://127.0.0.1:8080/rsgateway/data/json/subscriber")
             .method("POST")
@@ -68,6 +72,7 @@ pub async fn fetch_url() -> Result<(), Box<dyn Error>> {
         stream.send_data(request_body.into(), true)?;
         log::info!("Request sent");
 
+        let counter = Arc::clone(&counter);
         tokio::task::spawn(async move {
             let result: Result<(), Box<dyn std::error::Error>> = (async {
                 let response = response.await?;
@@ -77,6 +82,9 @@ pub async fn fetch_url() -> Result<(), Box<dyn Error>> {
                 while let Some(chunk) = body.data().await {
                     log::info!("Response Body: {:?}", chunk?);
                 }
+
+                let mut counter = counter.lock().unwrap();
+                *counter += 1;
                 Ok(())
             })
             .await;
@@ -86,5 +94,10 @@ pub async fn fetch_url() -> Result<(), Box<dyn Error>> {
             }
         });
     }
+
+    while *counter.lock().unwrap() < total_iteration {
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+
     Ok(())
 }
