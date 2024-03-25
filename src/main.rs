@@ -1,5 +1,4 @@
 use chrono::Local;
-use core::cell::RefCell;
 use h2::client;
 use http::Request;
 use std::error::Error;
@@ -7,6 +6,7 @@ use std::io::Write;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
+use std::time::Instant;
 use tokio::net::TcpStream;
 
 use serde_json::json;
@@ -50,7 +50,8 @@ pub async fn fetch_url() -> Result<(), Box<dyn Error>> {
 
     // let mut counter: u32 = 0;
     let counter = Arc::new(Mutex::new(0u32));
-    let total_iteration = 5;
+    let total_iteration = 50;
+    let start = Instant::now();
 
     for _ in 0..total_iteration {
         let request = Request::builder()
@@ -70,17 +71,17 @@ pub async fn fetch_url() -> Result<(), Box<dyn Error>> {
         let request_body = serde_json::to_string(&payload)?;
 
         stream.send_data(request_body.into(), true)?;
-        log::info!("Request sent");
+        log::debug!("Request sent");
 
         let counter = Arc::clone(&counter);
         tokio::task::spawn(async move {
             let result: Result<(), Box<dyn std::error::Error>> = (async {
                 let response = response.await?;
-                log::debug!("Response: {:?}", response);
+                log::trace!("Response: {:?}", response);
 
                 let mut body = response.into_body();
                 while let Some(chunk) = body.data().await {
-                    log::info!("Response Body: {:?}", chunk?);
+                    log::debug!("Response Body: {:?}", chunk?);
                 }
 
                 let mut counter = counter.lock().unwrap();
@@ -98,6 +99,11 @@ pub async fn fetch_url() -> Result<(), Box<dyn Error>> {
     while *counter.lock().unwrap() < total_iteration {
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
     }
+
+    let elapsed = start.elapsed();
+    let elapsed_s = elapsed.as_secs() as f64 + elapsed.subsec_millis() as f64 / 1000.0;
+    let tps = total_iteration as f64 / (elapsed.as_micros() as f64 / 1_000_000.0);
+    log::info!("Elapsed: {:.3}s , {} requests per second", elapsed_s, tps,);
 
     Ok(())
 }
