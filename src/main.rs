@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::Instant;
 use tokio::net::TcpStream;
+use tokio::sync::mpsc;
 use tokio::time;
 use tokio::time::Duration;
 
@@ -35,8 +36,11 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         .filter(None, log::LevelFilter::Info)
         .init();
 
+    let (tx, mut rx) = mpsc::channel(8);
+
     let parallel = 16;
     for _ in 0..parallel {
+        let tx = tx.clone();
         tokio::task::spawn_blocking(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -44,16 +48,28 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
                 .unwrap();
 
             rt.block_on(async move {
-                let _report = runner().await.unwrap();
-                // tx.send(report).await.unwrap();
+                let report = runner().await.unwrap();
+                tx.send(report).await.unwrap();
             });
         });
     }
 
+    drop(tx);
+
+    let mut total_tps = 0f64;
+    let mut elapsed = tokio::time::Duration::from_secs(0);
+    while let Some(report) = rx.recv().await {
+        total_tps += report.tps;
+        elapsed = elapsed.max(report.elapsed);
+    }
+
+    log::info!("Total TPS: {}", total_tps);
+    log::info!("Elapsed: {:?}", elapsed);
+
     Ok(())
 }
 
-pub async fn runner() -> Result<(), Box<dyn Error>> {
+pub async fn runner() -> Result<RunReport, Box<dyn Error>> {
     let tcp = TcpStream::connect("127.0.0.1:8080").await?;
     let (mut client, h2) = client::handshake(tcp).await?;
 
@@ -140,7 +156,8 @@ pub async fn runner() -> Result<(), Box<dyn Error>> {
     let tps = total_count as f64 / (elapsed.as_micros() as f64 / 1_000_000.0);
     log::info!("Elapsed: {:.3}s , {} requests per second", elapsed_s, tps,);
 
-    Ok(())
+    let report = RunReport { tps, elapsed };
+    Ok(report)
 }
 
 #[derive(Clone)]
@@ -167,4 +184,9 @@ impl RunParameter {
             total_requests,
         }
     }
+}
+
+pub struct RunReport {
+    pub tps: f64,
+    pub elapsed: Duration,
 }
