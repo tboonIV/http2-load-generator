@@ -38,7 +38,11 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     let (tx, mut rx) = mpsc::channel(8);
 
-    let parallel = 16;
+    let target_tps = 1000;
+    let duration_s = 15;
+    let parallel = 4;
+    let batch_size = None; // If None, it will be calculated based on target_tps automatically
+
     for _ in 0..parallel {
         let tx = tx.clone();
         tokio::task::spawn_blocking(move || {
@@ -48,7 +52,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
                 .unwrap();
 
             rt.block_on(async move {
-                let report = runner().await.unwrap();
+                let report = runner(target_tps, duration_s, batch_size).await.unwrap();
                 tx.send(report).await.unwrap();
             });
         });
@@ -69,7 +73,11 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub async fn runner() -> Result<RunReport, Box<dyn Error>> {
+pub async fn runner(
+    target_tps: u32,
+    duration_s: u32,
+    batch_size: Option<u32>,
+) -> Result<RunReport, Box<dyn Error>> {
     let tcp = TcpStream::connect("127.0.0.1:8080").await?;
     let (mut client, h2) = client::handshake(tcp).await?;
 
@@ -79,9 +87,7 @@ pub async fn runner() -> Result<RunReport, Box<dyn Error>> {
         }
     });
 
-    let target_tps = 1000;
-    let duration_s = 10;
-    let param = RunParameter::new(target_tps, duration_s);
+    let param = RunParameter::new(target_tps, duration_s, batch_size);
     let total_iterations = param.total_requests as f64 / param.batch_size as f64;
     let total_iterations = total_iterations.ceil() as u32;
     let total_requests = total_iterations * param.batch_size;
@@ -169,10 +175,15 @@ pub struct RunParameter {
 }
 
 impl RunParameter {
-    pub fn new(call_rate: u32, duration_s: u32) -> RunParameter {
+    pub fn new(call_rate: u32, duration_s: u32, batch_size: Option<u32>) -> RunParameter {
         let rps = call_rate;
-        let batch_size = (rps / 200) as u32;
-        let batch_size = if batch_size == 0 { 1 } else { batch_size };
+        let batch_size = if let Some(batch_size) = batch_size {
+            batch_size
+        } else {
+            let batch_size = (rps / 200) as u32;
+            let batch_size = if batch_size == 0 { 1 } else { batch_size };
+            batch_size
+        };
         let batches_per_second = rps as f64 / batch_size as f64;
         let interval = Duration::from_secs_f64(1.0 / batches_per_second);
         let total_requests = rps * duration_s;
