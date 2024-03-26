@@ -35,12 +35,25 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         .filter(None, log::LevelFilter::Info)
         .init();
 
-    fetch_url().await?;
+    let parallel = 16;
+    for _ in 0..parallel {
+        tokio::task::spawn_blocking(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+
+            rt.block_on(async move {
+                let _report = runner().await.unwrap();
+                // tx.send(report).await.unwrap();
+            });
+        });
+    }
 
     Ok(())
 }
 
-pub async fn fetch_url() -> Result<(), Box<dyn Error>> {
+pub async fn runner() -> Result<(), Box<dyn Error>> {
     let tcp = TcpStream::connect("127.0.0.1:8080").await?;
     let (mut client, h2) = client::handshake(tcp).await?;
 
@@ -50,7 +63,7 @@ pub async fn fetch_url() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    let target_tps = 2000;
+    let target_tps = 1000;
     let duration_s = 10;
     let param = RunParameter::new(target_tps, duration_s);
     let total_iterations = param.total_requests as f64 / param.batch_size as f64;
