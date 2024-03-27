@@ -38,8 +38,8 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     let (tx, mut rx) = mpsc::channel(8);
 
-    let target_tps = 1000;
-    let duration_s = 15;
+    let target_tps = 12000;
+    let duration_s = 10;
     let parallel = 4;
     let batch_size = None; // If None, it will be calculated based on target_tps automatically
 
@@ -101,7 +101,8 @@ pub async fn runner(
         param.interval.as_secs_f64()
     );
 
-    let counter = Arc::new(Mutex::new(0u32));
+    let success_counter = Arc::new(Mutex::new(0u32));
+    let error_counter = Arc::new(Mutex::new(0u32));
     let start = Instant::now();
 
     let mut interval = time::interval(param.interval);
@@ -114,7 +115,17 @@ pub async fn runner(
                 .method("POST")
                 .body(())?;
 
-            let (response, mut stream) = client.send_request(request, false)?;
+            let (response, mut stream) = match client.send_request(request, false) {
+                Ok(ok) => ok,
+                Err(_e) => {
+                    // log::warn!("Error sending request: {}", _e);
+                    // Back pressure
+                    tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+                    let mut error_counter = error_counter.lock().unwrap();
+                    *error_counter += 1;
+                    continue;
+                }
+            };
 
             let payload = json!({
                 "$": "MtxRequestSubscriberCreate",
@@ -128,7 +139,7 @@ pub async fn runner(
             stream.send_data(request_body.into(), true)?;
             log::debug!("Request sent");
 
-            let counter = Arc::clone(&counter);
+            let success_counter = Arc::clone(&success_counter);
             tokio::task::spawn(async move {
                 let result: Result<(), Box<dyn std::error::Error>> = (async {
                     let response = response.await?;
@@ -139,8 +150,8 @@ pub async fn runner(
                         log::debug!("Response Body: {:?}", chunk?);
                     }
 
-                    let mut counter = counter.lock().unwrap();
-                    *counter += 1;
+                    let mut success_counter = success_counter.lock().unwrap();
+                    *success_counter += 1;
                     Ok(())
                 })
                 .await;
@@ -152,15 +163,31 @@ pub async fn runner(
         }
     }
 
-    while *counter.lock().unwrap() < total_requests {
+    while *success_counter.lock().unwrap() + *error_counter.lock().unwrap() < total_requests {
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
     }
 
-    let total_count = *counter.lock().unwrap();
+    let success_count = *success_counter.lock().unwrap();
+    let error_count = *error_counter.lock().unwrap();
+    let total_count = success_count + error_count;
+
     let elapsed = start.elapsed();
     let elapsed_s = elapsed.as_secs() as f64 + elapsed.subsec_millis() as f64 / 1000.0;
-    let tps = total_count as f64 / (elapsed.as_micros() as f64 / 1_000_000.0);
-    log::info!("Elapsed: {:.3}s , {} requests per second", elapsed_s, tps,);
+    let tps = success_count as f64 / (elapsed.as_micros() as f64 / 1_000_000.0);
+    // log::info!(
+    //     "Completed with {}% success rate, error {}/{}",
+    //     success_count as f64 / total_count as f64 * 100.0,
+    //     error_count,
+    //     total_count,
+    // );
+    log::info!(
+        "Elapsed: {:.3}s , {} TPS, {:.3}% Success Rate, {}/{} error",
+        elapsed_s,
+        tps,
+        success_count as f64 / total_count as f64 * 100.0,
+        error_count,
+        total_count
+    );
 
     let report = RunReport { tps, elapsed };
     Ok(report)
