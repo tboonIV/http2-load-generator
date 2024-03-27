@@ -42,9 +42,9 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     let (tx, mut rx) = mpsc::channel(8);
 
-    let target_tps = 5000;
-    let duration_s = 5;
-    let parallel = 1;
+    let target_tps = 10000;
+    let duration_s = 10;
+    let parallel = 4;
     let batch_size = None; // If None, it will be calculated based on target_tps automatically
 
     for _ in 0..parallel {
@@ -66,13 +66,22 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     let mut total_tps = 0f64;
     let mut elapsed = tokio::time::Duration::from_secs(0);
+    let mut total_success = 0;
+    let mut total_error = 0;
     while let Some(report) = rx.recv().await {
         total_tps += report.tps;
         elapsed = elapsed.max(report.elapsed);
+        total_success += report.success_count;
+        total_error += report.error_count;
     }
+    let elapsed_s = elapsed.as_secs() as f64 + elapsed.subsec_millis() as f64 / 1000.0;
 
-    log::info!("Total TPS: {}", total_tps);
-    log::info!("Elapsed: {:?}", elapsed);
+    log::info!("Total TPS: {:.3}", total_tps);
+    log::info!("Elapsed: {:.3}", elapsed_s);
+    log::info!(
+        "Success Rate: {:.3}%",
+        total_success as f64 / (total_success + total_error) as f64 * 100.0
+    );
 
     Ok(())
 }
@@ -124,7 +133,7 @@ pub async fn runner(
                     Ok(ok) => ok,
                     Err(_e) => {
                         // Back pressure
-                        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                         let mut error_counter = error_counter.lock().unwrap();
                         *error_counter += 1;
                         continue;
@@ -180,15 +189,19 @@ pub async fn runner(
     let tps = success_count as f64 / (elapsed.as_micros() as f64 / 1_000_000.0);
 
     log::info!(
-        "Elapsed: {:.3}s , {} TPS, {:.3}% Success Rate ({}/{})",
+        "Elapsed: {:.3}s , {:.3} TPS, ({}/{}) Error",
         elapsed_s,
         tps,
-        success_count as f64 / total_count as f64 * 100.0,
-        success_count,
+        error_count,
         total_count
     );
 
-    let report = RunReport { tps, elapsed };
+    let report = RunReport {
+        tps,
+        elapsed,
+        success_count,
+        error_count,
+    };
     Ok(report)
 }
 
@@ -196,7 +209,7 @@ async fn send_request_with_retries(
     client: &mut SendRequest<Bytes>,
     request: &Request<()>,
 ) -> Result<(ResponseFuture, SendStream<Bytes>), Box<dyn Error>> {
-    let retry_delay = Duration::from_millis(25);
+    let retry_delay = Duration::from_millis(50);
     let mut retry_count = 0;
 
     loop {
@@ -208,7 +221,7 @@ async fn send_request_with_retries(
                 // log::warn!("Error sending request: {}", e);
                 retry_count += 1;
                 if retry_count >= 3 {
-                    log::error!("Maximum retries reached. Aborting.");
+                    // log::error!("Maximum retries reached. Aborting.");
                     return Err(Box::new(e));
                 }
                 tokio::time::sleep(retry_delay).await;
@@ -251,4 +264,6 @@ impl RunParameter {
 pub struct RunReport {
     pub tps: f64,
     pub elapsed: Duration,
+    pub success_count: u32,
+    pub error_count: u32,
 }
