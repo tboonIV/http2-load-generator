@@ -42,7 +42,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     let (tx, mut rx) = mpsc::channel(8);
 
-    let target_tps = 10000;
+    let target_tps = 2000;
     let duration_s = 10;
     let parallel = 4;
     let batch_size = None; // If None, it will be calculated based on target_tps automatically
@@ -117,12 +117,15 @@ pub async fn runner(
     let success_counter = Arc::new(Mutex::new(0u32));
     let error_counter = Arc::new(Mutex::new(0u32));
     let start = Instant::now();
+    let total_rtt = Arc::new(Mutex::new(Duration::from_secs(0)));
 
     let mut interval = time::interval(param.interval);
     for _ in 0..total_iterations {
         interval.tick().await;
 
         for _ in 0..param.batch_size {
+            let request_start = Instant::now();
+
             let request = Request::builder()
                 .uri("http://127.0.0.1:8080/rsgateway/data/json/subscriber")
                 .method("POST")
@@ -153,6 +156,8 @@ pub async fn runner(
             log::debug!("Request sent");
 
             let success_counter = Arc::clone(&success_counter);
+            let error_counter = Arc::clone(&error_counter);
+            let total_rtt = Arc::clone(&total_rtt);
             tokio::task::spawn(async move {
                 let result: Result<(), Box<dyn std::error::Error>> = (async {
                     let response = response.await?;
@@ -163,14 +168,20 @@ pub async fn runner(
                         log::debug!("Response Body: {:?}", chunk?);
                     }
 
-                    let mut success_counter = success_counter.lock().unwrap();
-                    *success_counter += 1;
                     Ok(())
                 })
                 .await;
 
                 if let Err(e) = result {
                     log::error!("Error processing response: {}", e);
+                    let mut error_counter = error_counter.lock().unwrap();
+                    *error_counter += 1;
+                } else {
+                    let round_trip_time = request_start.elapsed();
+                    let mut total_rtt = total_rtt.lock().unwrap();
+                    *total_rtt += round_trip_time;
+                    let mut success_counter = success_counter.lock().unwrap();
+                    *success_counter += 1;
                 }
             });
         }
@@ -183,15 +194,18 @@ pub async fn runner(
     let success_count = *success_counter.lock().unwrap();
     let error_count = *error_counter.lock().unwrap();
     let total_count = success_count + error_count;
+    let total_rtt = *total_rtt.lock().unwrap();
 
     let elapsed = start.elapsed();
     let elapsed_s = elapsed.as_secs() as f64 + elapsed.subsec_millis() as f64 / 1000.0;
     let tps = success_count as f64 / (elapsed.as_micros() as f64 / 1_000_000.0);
+    let avg_rtt = total_rtt.as_millis() as f64 / success_count as f64;
 
     log::info!(
-        "Elapsed: {:.3}s , {:.3} TPS, ({}/{}) Error",
+        "Elapsed: {:.3}s , TPS: {:.3}, AVG: {:.3}ms, ERR: ({}/{})",
         elapsed_s,
         tps,
+        avg_rtt,
         error_count,
         total_count
     );
