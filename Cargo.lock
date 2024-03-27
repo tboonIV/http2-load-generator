@@ -206,6 +206,7 @@ dependencies = [
 name = "http2-load-generator"
 version = "0.0.1"
 dependencies = [
+ "bytes",
  "chrono",
  "env_logger",
  "h2",

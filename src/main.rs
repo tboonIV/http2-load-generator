@@ -1,5 +1,9 @@
+use bytes::Bytes;
 use chrono::Local;
 use h2::client;
+use h2::client::ResponseFuture;
+use h2::client::SendRequest;
+use h2::SendStream;
 use http::Request;
 use std::error::Error;
 use std::io::Write;
@@ -38,9 +42,9 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     let (tx, mut rx) = mpsc::channel(8);
 
-    let target_tps = 12000;
-    let duration_s = 10;
-    let parallel = 4;
+    let target_tps = 5000;
+    let duration_s = 5;
+    let parallel = 1;
     let batch_size = None; // If None, it will be calculated based on target_tps automatically
 
     for _ in 0..parallel {
@@ -115,17 +119,17 @@ pub async fn runner(
                 .method("POST")
                 .body(())?;
 
-            let (response, mut stream) = match client.send_request(request, false) {
-                Ok(ok) => ok,
-                Err(_e) => {
-                    // log::warn!("Error sending request: {}", _e);
-                    // Back pressure
-                    tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
-                    let mut error_counter = error_counter.lock().unwrap();
-                    *error_counter += 1;
-                    continue;
-                }
-            };
+            let (response, mut stream) =
+                match send_request_with_retries(&mut client, &request).await {
+                    Ok(ok) => ok,
+                    Err(_e) => {
+                        // Back pressure
+                        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                        let mut error_counter = error_counter.lock().unwrap();
+                        *error_counter += 1;
+                        continue;
+                    }
+                };
 
             let payload = json!({
                 "$": "MtxRequestSubscriberCreate",
@@ -174,23 +178,43 @@ pub async fn runner(
     let elapsed = start.elapsed();
     let elapsed_s = elapsed.as_secs() as f64 + elapsed.subsec_millis() as f64 / 1000.0;
     let tps = success_count as f64 / (elapsed.as_micros() as f64 / 1_000_000.0);
-    // log::info!(
-    //     "Completed with {}% success rate, error {}/{}",
-    //     success_count as f64 / total_count as f64 * 100.0,
-    //     error_count,
-    //     total_count,
-    // );
+
     log::info!(
-        "Elapsed: {:.3}s , {} TPS, {:.3}% Success Rate, {}/{} error",
+        "Elapsed: {:.3}s , {} TPS, {:.3}% Success Rate ({}/{})",
         elapsed_s,
         tps,
         success_count as f64 / total_count as f64 * 100.0,
-        error_count,
+        success_count,
         total_count
     );
 
     let report = RunReport { tps, elapsed };
     Ok(report)
+}
+
+async fn send_request_with_retries(
+    client: &mut SendRequest<Bytes>,
+    request: &Request<()>,
+) -> Result<(ResponseFuture, SendStream<Bytes>), Box<dyn Error>> {
+    let retry_delay = Duration::from_millis(25);
+    let mut retry_count = 0;
+
+    loop {
+        match client.send_request(request.clone(), false) {
+            Ok((response, stream)) => {
+                return Ok((response, stream));
+            }
+            Err(e) => {
+                // log::warn!("Error sending request: {}", e);
+                retry_count += 1;
+                if retry_count >= 3 {
+                    log::error!("Maximum retries reached. Aborting.");
+                    return Err(Box::new(e));
+                }
+                tokio::time::sleep(retry_delay).await;
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
