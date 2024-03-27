@@ -42,7 +42,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     let (tx, mut rx) = mpsc::channel(8);
 
-    let target_tps = 2000;
+    let target_tps = 5000;
     let duration_s = 10;
     let parallel = 4;
     let batch_size = None; // If None, it will be calculated based on target_tps automatically
@@ -118,20 +118,19 @@ pub async fn runner(
     let error_counter = Arc::new(Mutex::new(0u32));
     let start = Instant::now();
     let total_rtt = Arc::new(Mutex::new(Duration::from_secs(0)));
+    let mut total_retry = 0;
 
     let mut interval = time::interval(param.interval);
     for _ in 0..total_iterations {
         interval.tick().await;
 
         for _ in 0..param.batch_size {
-            let request_start = Instant::now();
-
             let request = Request::builder()
                 .uri("http://127.0.0.1:8080/rsgateway/data/json/subscriber")
                 .method("POST")
                 .body(())?;
 
-            let (response, mut stream) =
+            let (response, mut stream, _retry_count, request_start) =
                 match send_request_with_retries(&mut client, &request).await {
                     Ok(ok) => ok,
                     Err(_e) => {
@@ -142,6 +141,7 @@ pub async fn runner(
                         continue;
                     }
                 };
+            total_retry += _retry_count as u32;
 
             let payload = json!({
                 "$": "MtxRequestSubscriberCreate",
@@ -202,12 +202,13 @@ pub async fn runner(
     let avg_rtt = total_rtt.as_millis() as f64 / success_count as f64;
 
     log::info!(
-        "Elapsed: {:.3}s , TPS: {:.3}, AVG: {:.3}ms, ERR: ({}/{})",
+        "Elapsed: {:.3}s, TPS: {:.3}, AVG: {:.3}ms, ERR: ({}/{}), RETRY: {}",
         elapsed_s,
         tps,
         avg_rtt,
         error_count,
-        total_count
+        total_count,
+        total_retry
     );
 
     let report = RunReport {
@@ -222,14 +223,15 @@ pub async fn runner(
 async fn send_request_with_retries(
     client: &mut SendRequest<Bytes>,
     request: &Request<()>,
-) -> Result<(ResponseFuture, SendStream<Bytes>), Box<dyn Error>> {
+) -> Result<(ResponseFuture, SendStream<Bytes>, u8, Instant), Box<dyn Error>> {
     let retry_delay = Duration::from_millis(50);
     let mut retry_count = 0;
 
     loop {
+        let start_time = Instant::now();
         match client.send_request(request.clone(), false) {
             Ok((response, stream)) => {
-                return Ok((response, stream));
+                return Ok((response, stream, retry_count, start_time));
             }
             Err(e) => {
                 // log::warn!("Error sending request: {}", e);
