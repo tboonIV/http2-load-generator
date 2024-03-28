@@ -40,16 +40,16 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
                 record.args()
             )
         })
-        .filter(None, log::LevelFilter::Debug)
+        .filter(None, log::LevelFilter::Info)
         .init();
 
     let (tx, mut rx) = mpsc::channel(8);
 
-    let target_tps = 1;
-    let duration_s = 5;
-    let parallel = 1;
-    let batch_size = Some(2);
-    // let batch_size = None; // If None, it will be calculated based on target_tps automatically
+    let target_tps = 15000;
+    let duration_s = 10;
+    let parallel = 8;
+    let batch_size = None; // If None, it will be calculated based on target_tps automatically
+                           // let batch_size = Some(2);
 
     for _ in 0..parallel {
         let tx = tx.clone();
@@ -124,6 +124,13 @@ pub async fn runner(
     let total_rtt = Arc::new(Mutex::new(Duration::from_secs(0)));
     let mut total_retry = 0;
 
+    let _stats_context = Arc::new(Mutex::new(StatsContext {
+        success_counter: 0,
+        error_counter: 0,
+        total_rtt: 0,
+        total_retry: 0,
+    }));
+
     let mut interval = time::interval(param.interval);
     for _ in 0..total_iterations {
         interval.tick().await;
@@ -141,8 +148,15 @@ pub async fn runner(
                     "ContactEmail": "james.bond@email.com"
                 }),
             };
-            let future = send_request(&mut client, http_request).await?;
-            response_futures.push(future);
+            let future = send_request(&mut client, http_request).await;
+            match future {
+                Ok(future) => response_futures.push(future),
+                Err(_e) => {
+                    // log::error!("Error sending request: {}", e);
+                    let mut error_counter = error_counter.lock().unwrap();
+                    *error_counter += 1;
+                }
+            }
         }
 
         for future in response_futures {
@@ -150,76 +164,18 @@ pub async fn runner(
             log::debug!("Response Status: {:?}", response.status);
             log::debug!("Response Body: {:?}", response.body);
 
+            total_retry += response.retry_count as u32;
+
             if response.status != StatusCode::OK {
                 let mut error_counter = error_counter.lock().unwrap();
                 *error_counter += 1;
             } else {
-                // let round_trip_time = start.elapsed();
-                // let mut total_rtt = total_rtt.lock().unwrap();
-                // *total_rtt += round_trip_time;
+                let round_trip_time = response.request_start.elapsed();
+                let mut total_rtt = total_rtt.lock().unwrap();
+                *total_rtt += round_trip_time;
                 let mut success_counter = success_counter.lock().unwrap();
                 *success_counter += 1;
             }
-
-            //     let request = Request::builder()
-            //         .uri("http://127.0.0.1:8080/rsgateway/data/json/subscriber")
-            //         .method("POST")
-            //         .body(())?;
-            //
-            //     let (response, mut stream, _retry_count, request_start) =
-            //         match send_request_with_retries(&mut client, &request).await {
-            //             Ok(ok) => ok,
-            //             Err(_e) => {
-            //                 // Back pressure
-            //                 tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            //                 let mut error_counter = error_counter.lock().unwrap();
-            //                 *error_counter += 1;
-            //                 continue;
-            //             }
-            //         };
-            //     total_retry += _retry_count as u32;
-            //
-            //     let payload = json!({
-            //         "$": "MtxRequestSubscriberCreate",
-            //         "Name": "James Bond",
-            //         "FirstName": "James",
-            //         "LastName": "Bond",
-            //         "ContactEmail": "james.bond@email.com"
-            //     });
-            //     let request_body = serde_json::to_string(&payload)?;
-            //
-            //     stream.send_data(request_body.into(), true)?;
-            //     log::debug!("Request sent");
-            //
-            //     let success_counter = Arc::clone(&success_counter);
-            //     let error_counter = Arc::clone(&error_counter);
-            //     let total_rtt = Arc::clone(&total_rtt);
-            //     tokio::task::spawn(async move {
-            //         let result: Result<(), Box<dyn std::error::Error>> = (async {
-            //             let response = response.await?;
-            //             log::trace!("Response: {:?}", response);
-            //
-            //             let mut body = response.into_body();
-            //             while let Some(chunk) = body.data().await {
-            //                 log::debug!("Response Body: {:?}", chunk?);
-            //             }
-            //
-            //             Ok(())
-            //         })
-            //         .await;
-            //
-            //         if let Err(e) = result {
-            //             log::error!("Error processing response: {}", e);
-            //             let mut error_counter = error_counter.lock().unwrap();
-            //             *error_counter += 1;
-            //         } else {
-            //             let round_trip_time = request_start.elapsed();
-            //             let mut total_rtt = total_rtt.lock().unwrap();
-            //             *total_rtt += round_trip_time;
-            //             let mut success_counter = success_counter.lock().unwrap();
-            //             *success_counter += 1;
-            //         }
-            //     });
         }
     }
 
@@ -265,6 +221,15 @@ pub struct HttpRequest {
 pub struct HttpResponse {
     pub status: StatusCode,
     pub body: serde_json::Value,
+    pub request_start: Instant,
+    pub retry_count: u8,
+}
+
+pub struct StatsContext {
+    pub success_counter: u32,
+    pub error_counter: u32,
+    pub total_rtt: u32,
+    pub total_retry: u32,
 }
 
 async fn send_request(
@@ -276,7 +241,7 @@ async fn send_request(
         .method(http_request.method)
         .body(())?;
 
-    let (response, mut stream, _retry_count, _request_start) =
+    let (response, mut stream, retry_count, request_start) =
         send_request_with_retries(client, &request).await?;
 
     let request_body = serde_json::to_string(&http_request.body)?;
@@ -299,18 +264,22 @@ async fn send_request(
             Ok(HttpResponse {
                 status,
                 body: serde_json::from_str(&response_body)?,
+                request_start,
+                retry_count,
             })
         })
         .await;
 
         match result {
             Ok(ok) => ok,
-            Err(e) => {
-                log::error!("Error processing response: {}", e);
+            Err(_e) => {
+                // log::error!("Error processing response: {}", e);
                 // TODO need better error handling
                 HttpResponse {
                     status: StatusCode::INTERNAL_SERVER_ERROR,
                     body: json!({}),
+                    request_start,
+                    retry_count,
                 }
             }
         }
@@ -323,7 +292,7 @@ async fn send_request_with_retries(
     client: &mut SendRequest<Bytes>,
     request: &Request<()>,
 ) -> Result<(ResponseFuture, SendStream<Bytes>, u8, Instant), Box<dyn Error>> {
-    let retry_delay = Duration::from_millis(50);
+    let retry_delay = Duration::from_millis(1);
     let mut retry_count = 0;
 
     loop {
@@ -335,7 +304,7 @@ async fn send_request_with_retries(
             Err(e) => {
                 // log::warn!("Error sending request: {}", e);
                 retry_count += 1;
-                if retry_count >= 3 {
+                if retry_count >= 1 {
                     // log::error!("Maximum retries reached. Aborting.");
                     return Err(Box::new(e));
                 }
