@@ -6,6 +6,7 @@ use h2::client::SendRequest;
 use h2::SendStream;
 use http::Method;
 use http::Request;
+use http::StatusCode;
 use std::error::Error;
 use std::io::Write;
 use std::sync::Arc;
@@ -14,6 +15,7 @@ use std::thread;
 use std::time::Instant;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio::time;
 use tokio::time::Duration;
 
@@ -126,6 +128,7 @@ pub async fn runner(
     for _ in 0..total_iterations {
         interval.tick().await;
 
+        let mut response_futures = vec![];
         for _ in 0..param.batch_size {
             let http_request = HttpRequest {
                 uri: "http://127.0.0.1:8080/rsgateway/data/json/subscriber".to_string(),
@@ -138,10 +141,25 @@ pub async fn runner(
                     "ContactEmail": "james.bond@email.com"
                 }),
             };
+            let future = send_request(&mut client, http_request).await?;
+            response_futures.push(future);
+        }
 
-            send_request(&mut client, http_request).await?;
-            let mut success_counter = success_counter.lock().unwrap();
-            *success_counter += 1;
+        for future in response_futures {
+            let response = future.await?;
+            log::debug!("Response Status: {:?}", response.status);
+            log::debug!("Response Body: {:?}", response.body);
+
+            if response.status != StatusCode::OK {
+                let mut error_counter = error_counter.lock().unwrap();
+                *error_counter += 1;
+            } else {
+                // let round_trip_time = start.elapsed();
+                // let mut total_rtt = total_rtt.lock().unwrap();
+                // *total_rtt += round_trip_time;
+                let mut success_counter = success_counter.lock().unwrap();
+                *success_counter += 1;
+            }
 
             //     let request = Request::builder()
             //         .uri("http://127.0.0.1:8080/rsgateway/data/json/subscriber")
@@ -245,14 +263,14 @@ pub struct HttpRequest {
 }
 
 pub struct HttpResponse {
-    pub status: u16,
+    pub status: StatusCode,
     pub body: serde_json::Value,
 }
 
 async fn send_request(
     client: &mut SendRequest<Bytes>,
     http_request: HttpRequest,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<JoinHandle<HttpResponse>, Box<dyn Error>> {
     let request = Request::builder()
         .uri(http_request.uri)
         .method(http_request.method)
@@ -266,29 +284,39 @@ async fn send_request(
     stream.send_data(request_body.into(), true)?;
     log::debug!("Request sent");
 
-    let _result = tokio::task::spawn(async move {
-        let result: Result<String, Box<dyn std::error::Error>> = (async {
+    let result = tokio::task::spawn(async move {
+        let result: Result<HttpResponse, Box<dyn std::error::Error>> = (async {
             let response = response.await?;
             log::trace!("Response: {:?}", response);
 
+            let status = response.status();
             let mut body = response.into_body();
             let mut response_body = String::new();
             while let Some(chunk) = body.data().await {
-                response_body.push_str(&String::from_utf8(chunk?.clone().to_vec()).unwrap());
+                response_body.push_str(&String::from_utf8(chunk?.clone().to_vec())?);
             }
 
-            Ok(response_body)
+            Ok(HttpResponse {
+                status,
+                body: serde_json::from_str(&response_body)?,
+            })
         })
         .await;
 
-        if let Err(e) = result {
-            log::error!("Error processing response: {}", e);
-        } else {
-            log::debug!("Response: {:?}", result.unwrap());
+        match result {
+            Ok(ok) => ok,
+            Err(e) => {
+                log::error!("Error processing response: {}", e);
+                // TODO need better error handling
+                HttpResponse {
+                    status: StatusCode::INTERNAL_SERVER_ERROR,
+                    body: json!({}),
+                }
+            }
         }
     });
 
-    Ok(())
+    Ok(result)
 }
 
 async fn send_request_with_retries(
