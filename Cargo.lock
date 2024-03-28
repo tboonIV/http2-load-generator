@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "http2-load-generator"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "bytes",
  "chrono",
