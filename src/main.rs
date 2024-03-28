@@ -1,3 +1,6 @@
+mod stats;
+
+use crate::stats::ApiStats;
 use bytes::Bytes;
 use chrono::Local;
 use h2::client;
@@ -10,7 +13,6 @@ use http::StatusCode;
 use std::error::Error;
 use std::io::Write;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::thread;
 use std::time::Instant;
 use tokio::net::TcpStream;
@@ -45,9 +47,9 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     let (tx, mut rx) = mpsc::channel(8);
 
-    let target_tps = 15000;
+    let target_tps = 10000;
     let duration_s = 10;
-    let parallel = 8;
+    let parallel = 4;
     let batch_size = None; // If None, it will be calculated based on target_tps automatically
                            // let batch_size = Some(2);
 
@@ -118,18 +120,8 @@ pub async fn runner(
         param.interval.as_secs_f64()
     );
 
-    let success_counter = Arc::new(Mutex::new(0u32));
-    let error_counter = Arc::new(Mutex::new(0u32));
     let start = Instant::now();
-    let total_rtt = Arc::new(Mutex::new(Duration::from_secs(0)));
-    let mut total_retry = 0;
-
-    let _stats_context = Arc::new(Mutex::new(StatsContext {
-        success_counter: 0,
-        error_counter: 0,
-        total_rtt: 0,
-        total_retry: 0,
-    }));
+    let api_stats = Arc::new(ApiStats::new());
 
     let mut interval = time::interval(param.interval);
     for _ in 0..total_iterations {
@@ -153,40 +145,43 @@ pub async fn runner(
                 Ok(future) => response_futures.push(future),
                 Err(_e) => {
                     // log::error!("Error sending request: {}", e);
-                    let mut error_counter = error_counter.lock().unwrap();
-                    *error_counter += 1;
+                    api_stats.inc_error();
                 }
             }
         }
 
+        // This will make the load-generator fully asynchronous and non-blocking
+        // Otherwise, it will be partially blocking.
+        //
+        // let api_stats = Arc::clone(&api_stats);
+        // tokio::task::spawn(async move {
         for future in response_futures {
-            let response = future.await?;
+            let response = future.await.unwrap();
             log::debug!("Response Status: {:?}", response.status);
             log::debug!("Response Body: {:?}", response.body);
 
-            total_retry += response.retry_count as u32;
+            api_stats.inc_retry(response.retry_count.into());
 
             if response.status != StatusCode::OK {
-                let mut error_counter = error_counter.lock().unwrap();
-                *error_counter += 1;
+                api_stats.inc_error();
             } else {
-                let round_trip_time = response.request_start.elapsed();
-                let mut total_rtt = total_rtt.lock().unwrap();
-                *total_rtt += round_trip_time;
-                let mut success_counter = success_counter.lock().unwrap();
-                *success_counter += 1;
+                let round_trip_time = response.request_start.elapsed().as_micros() as u64;
+                api_stats.inc_rtt(round_trip_time);
+                api_stats.inc_success();
             }
         }
+        // });
     }
 
-    while *success_counter.lock().unwrap() + *error_counter.lock().unwrap() < total_requests {
+    while api_stats.get_success() + api_stats.get_error() < total_requests {
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
     }
 
-    let success_count = *success_counter.lock().unwrap();
-    let error_count = *error_counter.lock().unwrap();
+    let success_count = api_stats.get_success();
+    let error_count = api_stats.get_error();
     let total_count = success_count + error_count;
-    let total_rtt = *total_rtt.lock().unwrap();
+    let total_rtt = Duration::from_micros(api_stats.get_rtt());
+    let total_retry = api_stats.get_retry();
 
     let elapsed = start.elapsed();
     let elapsed_s = elapsed.as_secs() as f64 + elapsed.subsec_millis() as f64 / 1000.0;
@@ -223,13 +218,6 @@ pub struct HttpResponse {
     pub body: serde_json::Value,
     pub request_start: Instant,
     pub retry_count: u8,
-}
-
-pub struct StatsContext {
-    pub success_counter: u32,
-    pub error_counter: u32,
-    pub total_rtt: u32,
-    pub total_retry: u32,
 }
 
 async fn send_request(
