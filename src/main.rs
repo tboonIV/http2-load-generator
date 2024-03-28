@@ -244,6 +244,11 @@ pub struct HttpRequest {
     pub body: serde_json::Value,
 }
 
+pub struct HttpResponse {
+    pub status: u16,
+    pub body: serde_json::Value,
+}
+
 async fn send_request(
     client: &mut SendRequest<Bytes>,
     http_request: HttpRequest,
@@ -261,22 +266,25 @@ async fn send_request(
     stream.send_data(request_body.into(), true)?;
     log::debug!("Request sent");
 
-    tokio::task::spawn(async move {
-        let result: Result<(), Box<dyn std::error::Error>> = (async {
+    let _result = tokio::task::spawn(async move {
+        let result: Result<String, Box<dyn std::error::Error>> = (async {
             let response = response.await?;
             log::trace!("Response: {:?}", response);
 
             let mut body = response.into_body();
+            let mut response_body = String::new();
             while let Some(chunk) = body.data().await {
-                log::debug!("Response Body: {:?}", chunk?);
+                response_body.push_str(&String::from_utf8(chunk?.clone().to_vec()).unwrap());
             }
 
-            Ok(())
+            Ok(response_body)
         })
         .await;
 
         if let Err(e) = result {
             log::error!("Error processing response: {}", e);
+        } else {
+            log::debug!("Response: {:?}", result.unwrap());
         }
     });
 
