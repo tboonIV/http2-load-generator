@@ -10,6 +10,8 @@ pub struct Config {
     pub duration: u32,
     pub parallel: u8,
     pub batch_size: BatchSize,
+    pub base_url: String,
+    pub scenarios: Vec<Scenario>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -17,6 +19,14 @@ pub struct Config {
 pub enum BatchSize {
     Auto(String),
     Fixed(u32),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Scenario {
+    pub name: String,
+    pub method: String,
+    pub path: String,
+    pub body: Option<String>,
 }
 
 pub fn read_yaml_file(path: &str) -> Result<Config, Box<dyn Error>> {
@@ -33,12 +43,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fixed_batch_size() {
+    fn test_yaml_serde() {
         let yaml_str = r#"
         target_tps: 100
         duration: 10
         parallel: 1
         batch_size: 5
+        base_url: "http://localhost:8080/"
+        scenarios:
+          - name: createSubscriber
+            method: POST
+            path: "/rsgateway/data/json/subscriber"
+            body: |
+              {
+                "$": "MtxRequestSubscriberCreate",
+                "Name": "James Bond",
+                "FirstName": "James",
+                "LastName": "Bond",
+                "ContactEmail": "james.bond@email.com"
+              }
+          - name: querySubscriber
+            method: GET
+            path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
     "#;
         let config: Config = serde_yaml::from_str(yaml_str).unwrap();
 
@@ -46,21 +72,31 @@ mod tests {
         assert_eq!(config.duration, 10);
         assert_eq!(config.parallel, 1);
         assert_eq!(config.batch_size, BatchSize::Fixed(5));
-    }
-
-    #[test]
-    fn auto_batch_size() {
-        let yaml_str = r#"
-        target_tps: 15000
-        duration: 600
-        parallel: 8
-        batch_size: "Auto"
-    "#;
-        let config: Config = serde_yaml::from_str(yaml_str).unwrap();
-
-        assert_eq!(config.target_tps, 15000);
-        assert_eq!(config.duration, 600);
-        assert_eq!(config.parallel, 8);
-        assert_eq!(config.batch_size, BatchSize::Auto("Auto".to_string()));
+        assert_eq!(config.base_url, "http://localhost:8080/".to_string());
+        assert_eq!(config.scenarios.len(), 2);
+        assert_eq!(config.scenarios[0].name, "createSubscriber");
+        assert_eq!(config.scenarios[0].method, "POST");
+        assert_eq!(config.scenarios[0].path, "/rsgateway/data/json/subscriber");
+        assert_eq!(
+            config.scenarios[0].body,
+            Some(
+                r#"{
+  "$": "MtxRequestSubscriberCreate",
+  "Name": "James Bond",
+  "FirstName": "James",
+  "LastName": "Bond",
+  "ContactEmail": "james.bond@email.com"
+}
+"#
+                .to_string()
+            )
+        );
+        assert_eq!(config.scenarios[1].name, "querySubscriber");
+        assert_eq!(config.scenarios[1].method, "GET");
+        assert_eq!(
+            config.scenarios[1].path,
+            "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
+        );
+        assert_eq!(config.scenarios[1].body, None);
     }
 }

@@ -1,5 +1,21 @@
 target_tps: 10000
 duration: 10
 parallel: 4
-# batch_size: 2
 batch_size: "Auto"
+base_url: "http://localhost:8080/"
+scenarios:
+  - name: createSubscriber
+    method: POST
+    path: "/rsgateway/data/json/subscriber"
+    body: |
+      {
+        "$": "MtxRequestSubscriberCreate",
+        "Name": "James Bond",
+        "FirstName": "James",
+        "LastName": "Bond",
+        "ContactEmail": "james.bond@email.com"
+      }
+  - name: querySubscriber
+    method: GET
+    path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
+

@@ -39,11 +39,6 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     let (tx, mut rx) = mpsc::channel(8);
 
-    // let target_tps = 1;
-    // let duration_s = 2;
-    // let parallel = 1;
-    // let batch_size = None; // If None, it will be calculated based on target_tps automatically
-    //                        // let batch_size = Some(2);
     let batch_size = match config.batch_size {
         config::BatchSize::Auto(_) => None,
         config::BatchSize::Fixed(size) => Some(size),
