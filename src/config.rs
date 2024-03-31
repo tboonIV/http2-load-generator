@@ -3,17 +3,20 @@ use serde_yaml::Value;
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
+use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub target_tps: u32,
-    pub duration: u32,
+    #[serde(deserialize_with = "humantime_duration_deserializer")]
+    pub duration: Duration,
     pub parallel: u8,
     pub batch_size: BatchSize,
     pub auto_throttle: bool,
     pub base_url: String,
     pub variables: Vec<Variable>,
-    pub delay_between_scenario: u32,
+    #[serde(deserialize_with = "humantime_duration_deserializer")]
+    pub delay_between_scenario: Duration,
     pub scenarios: Vec<Scenario>,
 }
 
@@ -48,6 +51,14 @@ pub fn read_yaml_file(path: &str) -> Result<Config, Box<dyn Error>> {
     Ok(config)
 }
 
+fn humantime_duration_deserializer<'de, D>(deserializer: D) -> Result<Duration, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    humantime::parse_duration(&s).map_err(|e| serde::de::Error::custom(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -56,7 +67,7 @@ mod tests {
     fn test_yaml_serde() {
         let yaml_str = r#"
         target_tps: 100
-        duration: 10
+        duration: 10s
         parallel: 1
         batch_size: 5
         auto_throttle: true
@@ -64,7 +75,7 @@ mod tests {
         variables:
           - name: COUNTER
             type: incremental
-        delay_between_scenario: 1
+        delay_between_scenario: 500ms
         scenarios:
           - name: createSubscriber
             method: POST
@@ -84,7 +95,7 @@ mod tests {
         let config: Config = serde_yaml::from_str(yaml_str).unwrap();
 
         assert_eq!(config.target_tps, 100);
-        assert_eq!(config.duration, 10);
+        assert_eq!(config.duration, Duration::from_secs(10));
         assert_eq!(config.parallel, 1);
         assert_eq!(config.batch_size, BatchSize::Fixed(5));
         assert_eq!(config.auto_throttle, true);
@@ -92,7 +103,7 @@ mod tests {
         assert_eq!(config.variables.len(), 1);
         assert_eq!(config.variables[0].name, "COUNTER");
         assert_eq!(config.variables[0].variable_type, "incremental");
-        assert_eq!(config.delay_between_scenario, 1);
+        assert_eq!(config.delay_between_scenario, Duration::from_millis(500));
         assert_eq!(config.scenarios.len(), 2);
         assert_eq!(config.scenarios[0].name, "createSubscriber");
         assert_eq!(config.scenarios[0].method, "POST");

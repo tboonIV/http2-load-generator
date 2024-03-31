@@ -1,5 +1,5 @@
 target_tps: 10000
-duration: 10
+duration: "10s"
 parallel: 4
 batch_size: "Auto"
 auto_throttle: true
@@ -7,7 +7,7 @@ base_url: "http://localhost:8080/"
 variables:
   - name: COUNTER
     type: incremental
-delay_between_scenario: 1
+delay_between_scenario: "500ms"
 scenarios:
   - name: createSubscriber
     method: POST

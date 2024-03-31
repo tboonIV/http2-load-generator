@@ -34,16 +34,22 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         .filter(None, log::LevelFilter::Info)
         .init();
 
+    // Read config
     let config = read_yaml_file("config.yaml")?;
     log::info!("Config: {:?}", config);
-
-    let (tx, mut rx) = mpsc::channel(8);
 
     let batch_size = match config.batch_size {
         config::BatchSize::Auto(_) => None,
         config::BatchSize::Fixed(size) => Some(size),
     };
 
+    if config.duration.as_secs() <= 0 {
+        return Err("Duration must be at least 1s".into());
+    }
+    let duration_s = config.duration.as_secs() as u32;
+
+    // Runner in parallel
+    let (tx, mut rx) = mpsc::channel(8);
     for _ in 0..config.parallel {
         let tx = tx.clone();
         tokio::task::spawn_blocking(move || {
@@ -53,7 +59,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
                 .unwrap();
 
             rt.block_on(async move {
-                let runner = Runner::new(config.target_tps, config.duration, batch_size);
+                let runner = Runner::new(config.target_tps, duration_s, batch_size);
                 let report = runner.run().await.unwrap();
                 tx.send(report).await.unwrap();
             });
@@ -62,6 +68,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     drop(tx);
 
+    // Aggregate report
     let mut aggregate_report = AggregatedReport::new();
     while let Some(report) = rx.recv().await {
         aggregate_report.add(report);
