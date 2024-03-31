@@ -10,7 +10,10 @@ pub struct Config {
     pub duration: u32,
     pub parallel: u8,
     pub batch_size: BatchSize,
+    pub auto_throttle: bool,
     pub base_url: String,
+    pub variables: Vec<Variable>,
+    pub delay_between_scenario: u32,
     pub scenarios: Vec<Scenario>,
 }
 
@@ -19,6 +22,13 @@ pub struct Config {
 pub enum BatchSize {
     Auto(String),
     Fixed(u32),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Variable {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub variable_type: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,7 +59,12 @@ mod tests {
         duration: 10
         parallel: 1
         batch_size: 5
+        auto_throttle: true
         base_url: "http://localhost:8080/"
+        variables:
+          - name: COUNTER
+            type: incremental
+        delay_between_scenario: 1
         scenarios:
           - name: createSubscriber
             method: POST
@@ -72,7 +87,12 @@ mod tests {
         assert_eq!(config.duration, 10);
         assert_eq!(config.parallel, 1);
         assert_eq!(config.batch_size, BatchSize::Fixed(5));
+        assert_eq!(config.auto_throttle, true);
         assert_eq!(config.base_url, "http://localhost:8080/".to_string());
+        assert_eq!(config.variables.len(), 1);
+        assert_eq!(config.variables[0].name, "COUNTER");
+        assert_eq!(config.variables[0].variable_type, "incremental");
+        assert_eq!(config.delay_between_scenario, 1);
         assert_eq!(config.scenarios.len(), 2);
         assert_eq!(config.scenarios[0].name, "createSubscriber");
         assert_eq!(config.scenarios[0].method, "POST");
