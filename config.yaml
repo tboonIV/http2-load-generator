@@ -1,3 +1,4 @@
+log_level: "Info"
 target_tps: 10000
 duration: "10s"
 parallel: 4

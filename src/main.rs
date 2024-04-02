@@ -14,6 +14,10 @@ use tokio::sync::mpsc;
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
+    // Read config
+    let config = read_yaml_file("config.yaml")?;
+
+    // Configure Logging
     env_logger::Builder::new()
         .format(|buf, record| {
             let now = Local::now();
@@ -31,13 +35,12 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
                 record.args()
             )
         })
-        .filter(None, log::LevelFilter::Info)
+        .filter(None, config.log_level.into())
         .init();
 
-    // Read config
-    let config = read_yaml_file("config.yaml")?;
-    log::info!("Config: {:?}", config);
+    log::debug!("Config: {:?}", config);
 
+    // Other parameters
     let batch_size = match config.batch_size {
         config::BatchSize::Auto(_) => None,
         config::BatchSize::Fixed(size) => Some(size),

@@ -7,6 +7,7 @@ use std::time::Duration;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    pub log_level: LogLevel,
     pub target_tps: u32,
     #[serde(deserialize_with = "humantime_duration_deserializer")]
     pub duration: Duration,
@@ -18,6 +19,29 @@ pub struct Config {
     #[serde(deserialize_with = "humantime_duration_deserializer")]
     pub delay_between_scenario: Duration,
     pub scenarios: Vec<Scenario>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Copy, Clone)]
+pub enum LogLevel {
+    Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl Into<log::LevelFilter> for LogLevel {
+    fn into(self) -> log::LevelFilter {
+        match self {
+            LogLevel::Off => log::LevelFilter::Off,
+            LogLevel::Error => log::LevelFilter::Error,
+            LogLevel::Warn => log::LevelFilter::Warn,
+            LogLevel::Info => log::LevelFilter::Info,
+            LogLevel::Debug => log::LevelFilter::Debug,
+            LogLevel::Trace => log::LevelFilter::Trace,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -66,6 +90,7 @@ mod tests {
     #[test]
     fn test_yaml_serde() {
         let yaml_str = r#"
+        log_level: "Debug"
         target_tps: 100
         duration: 10s
         parallel: 1
@@ -94,6 +119,7 @@ mod tests {
     "#;
         let config: Config = serde_yaml::from_str(yaml_str).unwrap();
 
+        assert_eq!(config.log_level, LogLevel::Debug);
         assert_eq!(config.target_tps, 100);
         assert_eq!(config.duration, Duration::from_secs(10));
         assert_eq!(config.parallel, 1);
