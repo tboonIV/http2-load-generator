@@ -15,7 +15,9 @@ use tokio::time::Duration;
 use serde_json::json;
 
 pub struct Runner {
+    // config: RunnerConfig,
     param: RunParameter,
+    target_address: String,
 }
 
 impl Runner {
@@ -29,13 +31,25 @@ impl Runner {
             return Err("Duration must be at least 1s".into());
         }
         let duration_s = config.duration.as_secs() as u32;
+
+        let url = config.base_url.clone();
+        let address = url
+            .strip_prefix("http://")
+            .or_else(|| url.strip_prefix("https://"))
+            .unwrap_or(&url);
+        let address = address.trim_end_matches('/');
+
+        log::debug!("Target Address: {}", address);
+
         Ok(Runner {
+            // config: config.clone(),
             param: RunParameter::new(config.target_tps, duration_s, batch_size),
+            target_address: address.into(),
         })
     }
 
     pub async fn run(&self) -> Result<RunReport, Box<dyn Error>> {
-        let tcp = TcpStream::connect("127.0.0.1:8080").await?;
+        let tcp = TcpStream::connect(&self.target_address).await?;
         let (mut client, h2) = client::handshake(tcp).await?;
 
         tokio::task::spawn(async move {
