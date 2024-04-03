@@ -1,3 +1,5 @@
+use crate::config;
+use crate::config::RunnerConfig;
 use crate::http_api::{send_request, HttpRequest};
 use crate::stats::ApiStats;
 use h2::client;
@@ -17,10 +19,19 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new(target_tps: u32, duration_s: u32, batch_size: Option<u32>) -> Runner {
-        Runner {
-            param: RunParameter::new(target_tps, duration_s, batch_size),
+    pub fn new(config: RunnerConfig) -> Result<Runner, Box<dyn Error>> {
+        let batch_size = match config.batch_size {
+            config::BatchSize::Auto(_) => None,
+            config::BatchSize::Fixed(size) => Some(size),
+        };
+
+        if config.duration.as_secs() <= 0 {
+            return Err("Duration must be at least 1s".into());
         }
+        let duration_s = config.duration.as_secs() as u32;
+        Ok(Runner {
+            param: RunParameter::new(config.target_tps, duration_s, batch_size),
+        })
     }
 
     pub async fn run(&self) -> Result<RunReport, Box<dyn Error>> {

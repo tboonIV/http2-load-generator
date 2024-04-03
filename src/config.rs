@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::Read;
 use std::time::Duration;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     pub log_level: LogLevel,
     pub parallel: u8,
@@ -35,7 +35,7 @@ impl Into<log::LevelFilter> for LogLevel {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct RunnerConfig {
     pub target_tps: u32,
     #[serde(deserialize_with = "humantime_duration_deserializer")]
@@ -49,21 +49,21 @@ pub struct RunnerConfig {
     pub scenarios: Vec<Scenario>,
 }
 
-#[derive(Debug, Deserialize, PartialEq)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(untagged)]
 pub enum BatchSize {
     Auto(String),
     Fixed(u32),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Variable {
     pub name: String,
     #[serde(rename = "type")]
     pub variable_type: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Scenario {
     pub name: String,
     pub method: String,
