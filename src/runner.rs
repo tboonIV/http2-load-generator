@@ -12,13 +12,11 @@ use tokio::net::TcpStream;
 use tokio::time;
 use tokio::time::Duration;
 
-use serde_json::json;
-
 pub struct Runner {
     // config: RunnerConfig,
     param: RunParameter,
     target_address: String,
-    scenario: ScenarioParameter,
+    scenarios: Vec<ScenarioParameter>,
 }
 
 impl Runner {
@@ -45,23 +43,26 @@ impl Runner {
         log::debug!("Target Address: {}", address);
 
         // scenarios
-        let scenario_config = config.scenarios.get(0).unwrap(); // TODO remove hardcode
-        let scenario = ScenarioParameter {
-            name: scenario_config.name.clone(),
-            uri: format!("{}{}", config.base_url, scenario_config.path),
-            method: scenario_config.method.parse()?,
-            body: match &scenario_config.body {
-                Some(body) => Some(serde_json::from_str(body)?),
-                None => None,
-            },
-        };
-        log::debug!("Scenario: {:?}", scenario);
+        let mut scenarios = vec![];
+        for scenario_config in &config.scenarios {
+            let scenario = ScenarioParameter {
+                name: scenario_config.name.clone(),
+                uri: format!("{}{}", config.base_url, scenario_config.path),
+                method: scenario_config.method.parse()?,
+                body: match &scenario_config.body {
+                    Some(body) => Some(serde_json::from_str(body)?),
+                    None => None,
+                },
+            };
+            scenarios.push(scenario);
+        }
+        log::debug!("Scenarios: {:?}", scenarios);
 
         Ok(Runner {
             // config: config.clone(),
             param: RunParameter::new(config.target_tps, duration_s, batch_size),
             target_address: address.into(),
-            scenario,
+            scenarios,
         })
     }
 
@@ -98,10 +99,12 @@ impl Runner {
 
             let mut response_futures = vec![];
             for _ in 0..param.batch_size {
+                let scenario = self.scenarios.get(0).unwrap(); // TODO remove hardcode
+
                 let http_request = HttpRequest {
-                    uri: self.scenario.uri.clone(),
-                    method: self.scenario.method.clone(),
-                    body: self.scenario.body.clone(),
+                    uri: scenario.uri.clone(),
+                    method: scenario.method.clone(),
+                    body: scenario.body.clone(),
                 };
                 let future = send_request(&mut client, http_request).await;
                 match future {
