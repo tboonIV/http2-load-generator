@@ -18,33 +18,50 @@ pub struct Runner {
     // config: RunnerConfig,
     param: RunParameter,
     target_address: String,
+    scenario: ScenarioParameter,
 }
 
 impl Runner {
     pub fn new(config: RunnerConfig) -> Result<Runner, Box<dyn Error>> {
+        // batch size
         let batch_size = match config.batch_size {
             config::BatchSize::Auto(_) => None,
             config::BatchSize::Fixed(size) => Some(size),
         };
 
+        // duration
         if config.duration.as_secs() <= 0 {
             return Err("Duration must be at least 1s".into());
         }
         let duration_s = config.duration.as_secs() as u32;
 
+        // target address
         let url = config.base_url.clone();
         let address = url
             .strip_prefix("http://")
             .or_else(|| url.strip_prefix("https://"))
             .unwrap_or(&url);
         let address = address.trim_end_matches('/');
-
         log::debug!("Target Address: {}", address);
+
+        // scenarios
+        let scenario_config = config.scenarios.get(0).unwrap(); // TODO remove hardcode
+        let scenario = ScenarioParameter {
+            name: scenario_config.name.clone(),
+            uri: format!("{}{}", config.base_url, scenario_config.path),
+            method: scenario_config.method.parse()?,
+            body: match &scenario_config.body {
+                Some(body) => Some(serde_json::from_str(body)?),
+                None => None,
+            },
+        };
+        log::debug!("Scenario: {:?}", scenario);
 
         Ok(Runner {
             // config: config.clone(),
             param: RunParameter::new(config.target_tps, duration_s, batch_size),
             target_address: address.into(),
+            scenario,
         })
     }
 
@@ -82,15 +99,9 @@ impl Runner {
             let mut response_futures = vec![];
             for _ in 0..param.batch_size {
                 let http_request = HttpRequest {
-                    uri: "http://127.0.0.1:8080/rsgateway/data/json/subscriber".to_string(),
-                    method: Method::POST,
-                    body: json!({
-                        "$": "MtxRequestSubscriberCreate",
-                        "Name": "James Bond",
-                        "FirstName": "James",
-                        "LastName": "Bond",
-                        "ContactEmail": "james.bond@email.com"
-                    }),
+                    uri: self.scenario.uri.clone(),
+                    method: self.scenario.method.clone(),
+                    body: self.scenario.body.clone(),
                 };
                 let future = send_request(&mut client, http_request).await;
                 match future {
@@ -159,6 +170,14 @@ impl Runner {
         };
         Ok(report)
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ScenarioParameter {
+    pub name: String,
+    pub uri: String,
+    pub method: Method,
+    pub body: Option<serde_json::Value>,
 }
 
 #[derive(Clone)]

@@ -5,7 +5,7 @@ runner:
   duration: "10s"
   batch_size: "Auto"
   auto_throttle: true
-  base_url: "http://localhost:8080/"
+  base_url: "http://localhost:8080"
   variables:
     - name: COUNTER
       type: incremental

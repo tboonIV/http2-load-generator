@@ -14,7 +14,7 @@ use tokio::time::Duration;
 pub struct HttpRequest {
     pub uri: String,
     pub method: Method,
-    pub body: serde_json::Value,
+    pub body: Option<serde_json::Value>,
 }
 
 pub struct HttpResponse {
