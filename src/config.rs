@@ -8,17 +8,8 @@ use std::time::Duration;
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub log_level: LogLevel,
-    pub target_tps: u32,
-    #[serde(deserialize_with = "humantime_duration_deserializer")]
-    pub duration: Duration,
     pub parallel: u8,
-    pub batch_size: BatchSize,
-    pub auto_throttle: bool,
-    pub base_url: String,
-    pub variables: Vec<Variable>,
-    #[serde(deserialize_with = "humantime_duration_deserializer")]
-    pub delay_between_scenario: Duration,
-    pub scenarios: Vec<Scenario>,
+    pub runner: RunnerConfig,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Copy, Clone)]
@@ -42,6 +33,20 @@ impl Into<log::LevelFilter> for LogLevel {
             LogLevel::Trace => log::LevelFilter::Trace,
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RunnerConfig {
+    pub target_tps: u32,
+    #[serde(deserialize_with = "humantime_duration_deserializer")]
+    pub duration: Duration,
+    pub batch_size: BatchSize,
+    pub auto_throttle: bool,
+    pub base_url: String,
+    pub variables: Vec<Variable>,
+    #[serde(deserialize_with = "humantime_duration_deserializer")]
+    pub delay_between_scenario: Duration,
+    pub scenarios: Vec<Scenario>,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -91,51 +96,58 @@ mod tests {
     fn test_yaml_serde() {
         let yaml_str = r#"
         log_level: "Debug"
-        target_tps: 100
-        duration: 10s
         parallel: 1
-        batch_size: 5
-        auto_throttle: true
-        base_url: "http://localhost:8080/"
-        variables:
-          - name: COUNTER
-            type: incremental
-        delay_between_scenario: 500ms
-        scenarios:
-          - name: createSubscriber
-            method: POST
-            path: "/rsgateway/data/json/subscriber"
-            body: |
-              {
-                "$": "MtxRequestSubscriberCreate",
-                "Name": "James Bond",
-                "FirstName": "James",
-                "LastName": "Bond",
-                "ContactEmail": "james.bond@email.com"
-              }
-          - name: querySubscriber
-            method: GET
-            path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
+        runner:
+          target_tps: 100
+          duration: 10s
+          batch_size: 5
+          auto_throttle: true
+          base_url: "http://localhost:8080/"
+          variables:
+            - name: COUNTER
+              type: incremental
+          delay_between_scenario: 500ms
+          scenarios:
+            - name: createSubscriber
+              method: POST
+              path: "/rsgateway/data/json/subscriber"
+              body: |
+                {
+                  "$": "MtxRequestSubscriberCreate",
+                  "Name": "James Bond",
+                  "FirstName": "James",
+                  "LastName": "Bond",
+                  "ContactEmail": "james.bond@email.com"
+                }
+            - name: querySubscriber
+              method: GET
+              path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
     "#;
         let config: Config = serde_yaml::from_str(yaml_str).unwrap();
 
         assert_eq!(config.log_level, LogLevel::Debug);
-        assert_eq!(config.target_tps, 100);
-        assert_eq!(config.duration, Duration::from_secs(10));
         assert_eq!(config.parallel, 1);
-        assert_eq!(config.batch_size, BatchSize::Fixed(5));
-        assert_eq!(config.auto_throttle, true);
-        assert_eq!(config.base_url, "http://localhost:8080/".to_string());
-        assert_eq!(config.variables.len(), 1);
-        assert_eq!(config.variables[0].name, "COUNTER");
-        assert_eq!(config.variables[0].variable_type, "incremental");
-        assert_eq!(config.delay_between_scenario, Duration::from_millis(500));
-        assert_eq!(config.scenarios.len(), 2);
-        assert_eq!(config.scenarios[0].name, "createSubscriber");
-        assert_eq!(config.scenarios[0].method, "POST");
-        assert_eq!(config.scenarios[0].path, "/rsgateway/data/json/subscriber");
+        assert_eq!(config.runner.target_tps, 100);
+        assert_eq!(config.runner.duration, Duration::from_secs(10));
+        assert_eq!(config.runner.batch_size, BatchSize::Fixed(5));
+        assert_eq!(config.runner.auto_throttle, true);
+        assert_eq!(config.runner.base_url, "http://localhost:8080/".to_string());
+        assert_eq!(config.runner.variables.len(), 1);
+        assert_eq!(config.runner.variables[0].name, "COUNTER");
+        assert_eq!(config.runner.variables[0].variable_type, "incremental");
         assert_eq!(
-            config.scenarios[0].body,
+            config.runner.delay_between_scenario,
+            Duration::from_millis(500)
+        );
+        assert_eq!(config.runner.scenarios.len(), 2);
+        assert_eq!(config.runner.scenarios[0].name, "createSubscriber");
+        assert_eq!(config.runner.scenarios[0].method, "POST");
+        assert_eq!(
+            config.runner.scenarios[0].path,
+            "/rsgateway/data/json/subscriber"
+        );
+        assert_eq!(
+            config.runner.scenarios[0].body,
             Some(
                 r#"{
   "$": "MtxRequestSubscriberCreate",
@@ -148,12 +160,12 @@ mod tests {
                 .to_string()
             )
         );
-        assert_eq!(config.scenarios[1].name, "querySubscriber");
-        assert_eq!(config.scenarios[1].method, "GET");
+        assert_eq!(config.runner.scenarios[1].name, "querySubscriber");
+        assert_eq!(config.runner.scenarios[1].method, "GET");
         assert_eq!(
-            config.scenarios[1].path,
+            config.runner.scenarios[1].path,
             "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
         );
-        assert_eq!(config.scenarios[1].body, None);
+        assert_eq!(config.runner.scenarios[1].body, None);
     }
 }

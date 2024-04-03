@@ -41,15 +41,15 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     log::debug!("Config: {:?}", config);
 
     // Other parameters
-    let batch_size = match config.batch_size {
+    let batch_size = match config.runner.batch_size {
         config::BatchSize::Auto(_) => None,
         config::BatchSize::Fixed(size) => Some(size),
     };
 
-    if config.duration.as_secs() <= 0 {
+    if config.runner.duration.as_secs() <= 0 {
         return Err("Duration must be at least 1s".into());
     }
-    let duration_s = config.duration.as_secs() as u32;
+    let duration_s = config.runner.duration.as_secs() as u32;
 
     // Runner in parallel
     let (tx, mut rx) = mpsc::channel(8);
@@ -62,7 +62,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
                 .unwrap();
 
             rt.block_on(async move {
-                let runner = Runner::new(config.target_tps, duration_s, batch_size);
+                let runner = Runner::new(config.runner.target_tps, duration_s, batch_size);
                 let report = runner.run().await.unwrap();
                 tx.send(report).await.unwrap();
             });
