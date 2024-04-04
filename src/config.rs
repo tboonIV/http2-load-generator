@@ -41,11 +41,11 @@ pub struct RunnerConfig {
     #[serde(deserialize_with = "humantime_duration_deserializer")]
     pub duration: Duration,
     pub batch_size: BatchSize,
-    pub auto_throttle: bool,
+    // pub auto_throttle: bool,
     pub base_url: String,
     pub variables: Vec<Variable>,
-    #[serde(deserialize_with = "humantime_duration_deserializer")]
-    pub delay_between_scenario: Duration,
+    // #[serde(deserialize_with = "humantime_duration_deserializer")]
+    // pub delay_between_scenario: Duration,
     pub scenarios: Vec<Scenario>,
 }
 
@@ -101,12 +101,12 @@ mod tests {
           target_tps: 100
           duration: 10s
           batch_size: 5
-          auto_throttle: true
+          # auto_throttle: true
           base_url: "http://localhost:8080/"
           variables:
             - name: COUNTER
               type: incremental
-          delay_between_scenario: 500ms
+          # delay_between_scenario: 500ms
           scenarios:
             - name: createSubscriber
               method: POST
@@ -130,15 +130,15 @@ mod tests {
         assert_eq!(config.runner.target_tps, 100);
         assert_eq!(config.runner.duration, Duration::from_secs(10));
         assert_eq!(config.runner.batch_size, BatchSize::Fixed(5));
-        assert_eq!(config.runner.auto_throttle, true);
+        // assert_eq!(config.runner.auto_throttle, true);
         assert_eq!(config.runner.base_url, "http://localhost:8080/".to_string());
         assert_eq!(config.runner.variables.len(), 1);
         assert_eq!(config.runner.variables[0].name, "COUNTER");
         assert_eq!(config.runner.variables[0].variable_type, "incremental");
-        assert_eq!(
-            config.runner.delay_between_scenario,
-            Duration::from_millis(500)
-        );
+        // assert_eq!(
+        //     config.runner.delay_between_scenario,
+        //     Duration::from_millis(500)
+        // );
         assert_eq!(config.runner.scenarios.len(), 2);
         assert_eq!(config.runner.scenarios[0].name, "createSubscriber");
         assert_eq!(config.runner.scenarios[0].method, "POST");

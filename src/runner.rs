@@ -13,10 +13,10 @@ use tokio::time;
 use tokio::time::Duration;
 
 pub struct Runner {
-    // config: RunnerConfig,
     param: RunParameter,
     target_address: String,
-    scenarios: Vec<ScenarioParameter>,
+    first_scenario: ScenarioParameter,
+    // subsequent_scenarios: Vec<ScenarioParameter>,
 }
 
 impl Runner {
@@ -43,26 +43,19 @@ impl Runner {
         log::debug!("Target Address: {}", address);
 
         // scenarios
-        let mut scenarios = vec![];
-        for scenario_config in &config.scenarios {
-            let scenario = ScenarioParameter {
-                name: scenario_config.name.clone(),
-                uri: format!("{}{}", config.base_url, scenario_config.path),
-                method: scenario_config.method.parse()?,
-                body: match &scenario_config.body {
-                    Some(body) => Some(serde_json::from_str(body)?),
-                    None => None,
-                },
-            };
-            scenarios.push(scenario);
-        }
-        log::debug!("Scenarios: {:?}", scenarios);
+        // let mut subsequent_scenarios = vec![];
+        let first_scenario = config.scenarios.get(0).ok_or("No scenario defined")?;
+
+        // for scenario_config in &config.scenarios {
+        //     subsequent_scenarios.push(scenario_config.into());
+        // }
+        // log::debug!("Scenarios: {:?}", scenarios);
 
         Ok(Runner {
-            // config: config.clone(),
             param: RunParameter::new(config.target_tps, duration_s, batch_size),
             target_address: address.into(),
-            scenarios,
+            first_scenario: first_scenario.into(),
+            // subsequent_scenarios,
         })
     }
 
@@ -99,7 +92,7 @@ impl Runner {
 
             let mut response_futures = vec![];
             for _ in 0..param.batch_size {
-                let scenario = self.scenarios.get(0).unwrap(); // TODO remove hardcode
+                let scenario = self.first_scenario.clone();
 
                 let http_request = HttpRequest {
                     uri: scenario.uri.clone(),
@@ -181,6 +174,20 @@ pub struct ScenarioParameter {
     pub uri: String,
     pub method: Method,
     pub body: Option<serde_json::Value>,
+}
+
+impl From<&config::Scenario> for ScenarioParameter {
+    fn from(config: &config::Scenario) -> Self {
+        ScenarioParameter {
+            name: config.name.clone(),
+            uri: config.path.clone(),
+            method: config.method.parse().unwrap(),
+            body: match &config.body {
+                Some(body) => Some(serde_json::from_str(body).unwrap()),
+                None => None,
+            },
+        }
+    }
 }
 
 #[derive(Clone)]
