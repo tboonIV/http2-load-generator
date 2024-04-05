@@ -217,9 +217,7 @@ impl Runner {
         client: &'a mut SendRequest<Bytes>,
         scenarios: Vec<ScenarioParameter>,
         idx: usize,
-    ) -> BoxFuture<'a, HttpResponse> {
-        // ) -> BoxFuture<'statc, Result<HttpResponse, Box<dyn Error>>> {
-
+    ) -> BoxFuture<'a, JoinHandle<HttpResponse>> {
         async move {
             let scenario = scenarios.get(idx).unwrap();
             let http_request = HttpRequest {
@@ -236,27 +234,31 @@ impl Runner {
             //         api_stats.inc_error();
             //     }
             // }
-            let response = future.await.unwrap();
-            log::debug!("Response Status: {:?}", response.status);
-            log::debug!("Response Body: {:?}", response.body);
 
-            // api_stats.inc_retry(response.retry_count.into());
+            tokio::task::spawn(async move {
+                let response = future.await.unwrap();
+                log::debug!("Response Status: {:?}", response.status);
+                log::debug!("Response Body: {:?}", response.body);
 
-            if response.status != StatusCode::OK {
-                // api_stats.inc_error();
-            } else {
-                // let round_trip_time = response.request_start.elapsed().as_micros() as u64;
-                // api_stats.inc_rtt(round_trip_time);
-                // api_stats.inc_success();
-            }
+                // api_stats.inc_retry(response.retry_count.into());
 
-            let response = if idx + 1 < scenarios.len() {
-                let next_future = Self::run_scenario_sub(client, scenarios, idx + 1);
-                next_future.await
-            } else {
+                if response.status != StatusCode::OK {
+                    // api_stats.inc_error();
+                } else {
+                    // let round_trip_time = response.request_start.elapsed().as_micros() as u64;
+                    // api_stats.inc_rtt(round_trip_time);
+                    // api_stats.inc_success();
+                }
+
+                // let response = if idx + 1 < scenarios.len() {
+                //     let next_future = Self::run_scenario_sub(client, scenarios, idx + 1);
+                //     let next_future = next_future.fuse().await.await;
+                //     next_future.unwrap()
+                // } else {
+                //     response
+                // };
                 response
-            };
-            response
+            })
         }
         .boxed()
     }
