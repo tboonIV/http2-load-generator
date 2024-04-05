@@ -39,7 +39,7 @@ pub async fn send_request(
     let request_body = serde_json::to_string(&http_request.body)?;
 
     stream.send_data(request_body.into(), true)?;
-    log::debug!("Request sent");
+    // log::debug!("Request sent");
 
     let result = tokio::task::spawn(async move {
         let result: Result<HttpResponse, Box<dyn std::error::Error>> = (async {

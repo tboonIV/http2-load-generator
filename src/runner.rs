@@ -1,14 +1,18 @@
 use crate::config;
 use crate::config::RunnerConfig;
-use crate::http_api::{send_request, HttpRequest};
+use crate::http_api::{send_request, HttpRequest, HttpResponse};
 use crate::stats::ApiStats;
+use bytes::Bytes;
+use futures::future::{BoxFuture, FutureExt};
 use h2::client;
+use h2::client::SendRequest;
 use http::Method;
 use http::StatusCode;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::TcpStream;
+use tokio::task::JoinHandle;
 use tokio::time;
 use tokio::time::Duration;
 
@@ -16,7 +20,7 @@ pub struct Runner {
     param: RunParameter,
     target_address: String,
     first_scenario: ScenarioParameter,
-    // subsequent_scenarios: Vec<ScenarioParameter>,
+    subsequent_scenarios: Vec<ScenarioParameter>,
 }
 
 impl Runner {
@@ -43,19 +47,19 @@ impl Runner {
         log::debug!("Target Address: {}", address);
 
         // scenarios
-        // let mut subsequent_scenarios = vec![];
+        let mut subsequent_scenarios = vec![];
         let first_scenario = config.scenarios.get(0).ok_or("No scenario defined")?;
 
-        // for scenario_config in &config.scenarios {
-        //     subsequent_scenarios.push(scenario_config.into());
-        // }
-        // log::debug!("Scenarios: {:?}", scenarios);
+        for scenario_config in config.scenarios.iter().skip(1) {
+            subsequent_scenarios.push(scenario_config.into());
+        }
+        log::debug!("Scenarios: {:?}", subsequent_scenarios);
 
         Ok(Runner {
             param: RunParameter::new(config.target_tps, duration_s, batch_size),
             target_address: address.into(),
             first_scenario: first_scenario.into(),
-            // subsequent_scenarios,
+            subsequent_scenarios,
         })
     }
 
@@ -100,6 +104,8 @@ impl Runner {
                     body: scenario.body.clone(),
                 };
                 let future = send_request(&mut client, http_request).await;
+                log::debug!("First Request sent");
+                // let future = Self::run_scenario(&mut client, scenario).await;
                 match future {
                     Ok(future) => response_futures.push(future),
                     Err(_e) => {
@@ -127,6 +133,8 @@ impl Runner {
                     let round_trip_time = response.request_start.elapsed().as_micros() as u64;
                     api_stats.inc_rtt(round_trip_time);
                     api_stats.inc_success();
+
+                    Self::run_scenario_sub(&mut client, self.subsequent_scenarios.clone(), 0).await;
                 }
             }
             // });
@@ -165,6 +173,92 @@ impl Runner {
             total_rtt,
         };
         Ok(report)
+    }
+
+    // async fn run_scenario(
+    //     client: &mut SendRequest<Bytes>,
+    //     scenario: ScenarioParameter,
+    // ) -> Result<JoinHandle<HttpResponse>, Box<dyn Error>> {
+    //     let http_request = HttpRequest {
+    //         uri: scenario.uri.clone(),
+    //         method: scenario.method.clone(),
+    //         body: scenario.body.clone(),
+    //     };
+    //     let future = send_request(client, http_request).await?;
+    //     log::debug!("First Request sent");
+    //     // match future {
+    //     //     Ok(future) => response_futures.push(future),
+    //     //     Err(_e) => {
+    //     //         // log::error!("Error sending request: {}", e);
+    //     //         api_stats.inc_error();
+    //     //     }
+    //     // }
+    //     Ok(tokio::task::spawn(async move {
+    //         let response = future.await.unwrap();
+    //         log::debug!("Response Status: {:?}", response.status);
+    //         log::debug!("Response Body: {:?}", response.body);
+    //
+    //         // api_stats.inc_retry(response.retry_count.into());
+    //
+    //         if response.status != StatusCode::OK {
+    //             // api_stats.inc_error();
+    //         } else {
+    //             // let round_trip_time = response.request_start.elapsed().as_micros() as u64;
+    //             // api_stats.inc_rtt(round_trip_time);
+    //             // api_stats.inc_success();
+    //         }
+    //         // let response = Self::run_scenario_sub(client, scenarios, 0).await;
+    //
+    //         response
+    //     }))
+    // }
+
+    fn run_scenario_sub<'a>(
+        client: &'a mut SendRequest<Bytes>,
+        scenarios: Vec<ScenarioParameter>,
+        idx: usize,
+    ) -> BoxFuture<'a, HttpResponse> {
+        // ) -> BoxFuture<'statc, Result<HttpResponse, Box<dyn Error>>> {
+
+        async move {
+            let scenario = scenarios.get(idx).unwrap();
+            let http_request = HttpRequest {
+                uri: scenario.uri.clone(),
+                method: scenario.method.clone(),
+                body: scenario.body.clone(),
+            };
+            let future = send_request(client, http_request).await.unwrap();
+            log::debug!("{} Request sent", idx);
+            // match future {
+            //     Ok(future) => response_futures.push(future),
+            //     Err(_e) => {
+            //         // log::error!("Error sending request: {}", e);
+            //         api_stats.inc_error();
+            //     }
+            // }
+            let response = future.await.unwrap();
+            log::debug!("Response Status: {:?}", response.status);
+            log::debug!("Response Body: {:?}", response.body);
+
+            // api_stats.inc_retry(response.retry_count.into());
+
+            if response.status != StatusCode::OK {
+                // api_stats.inc_error();
+            } else {
+                // let round_trip_time = response.request_start.elapsed().as_micros() as u64;
+                // api_stats.inc_rtt(round_trip_time);
+                // api_stats.inc_success();
+            }
+
+            let response = if idx + 1 < scenarios.len() {
+                let next_future = Self::run_scenario_sub(client, scenarios, idx + 1);
+                next_future.await
+            } else {
+                response
+            };
+            response
+        }
+        .boxed()
     }
 }
 
