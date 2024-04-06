@@ -12,6 +12,8 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::TcpStream;
+use tokio::sync::mpsc::channel;
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio::time;
 use tokio::time::Duration;
@@ -73,6 +75,12 @@ impl Runner {
             }
         });
 
+        let (tx, rx) = channel(32);
+        tokio::spawn(async move {
+            // TODO remove unwrap
+            Self::event_loop(client, rx).await.unwrap();
+        });
+
         let param = &self.param;
         let total_iterations = param.total_requests as f64 / param.batch_size as f64;
         let total_iterations = total_iterations.ceil() as u32;
@@ -94,7 +102,9 @@ impl Runner {
         for _ in 0..total_iterations {
             interval.tick().await;
 
-            let mut response_futures = vec![];
+            let mut count = 0;
+            let (resp_tx, mut resp_rx) = channel(32);
+            // let mut response_futures = vec![];
             for _ in 0..param.batch_size {
                 let scenario = self.first_scenario.clone();
 
@@ -103,14 +113,36 @@ impl Runner {
                     method: scenario.method.clone(),
                     body: scenario.body.clone(),
                 };
-                let future = send_request(&mut client, http_request).await;
-                log::debug!("First Request sent");
+                // let future = send_request(&mut client, http_request).await;
+
+                tx.send(Event::SendMessage(http_request, resp_tx.clone()))
+                    .await
+                    .unwrap();
+                log::debug!("Request {} sent", count);
+                count += 1;
                 // let future = Self::run_scenario(&mut client, scenario).await;
-                match future {
-                    Ok(future) => response_futures.push(future),
-                    Err(_e) => {
-                        // log::error!("Error sending request: {}", e);
+                // match future {
+                //     Ok(future) => response_futures.push(future),
+                //     Err(_e) => {
+                //         // log::error!("Error sending request: {}", e);
+                //         api_stats.inc_error();
+                //     }
+                // }
+            }
+
+            for i in 0..count {
+                if let Some(response) = resp_rx.recv().await {
+                    log::debug!("Response {} Status: {:?}", i, response.status);
+                    log::debug!("Response {} Body: {:?}", i, response.body);
+
+                    api_stats.inc_retry(response.retry_count.into());
+
+                    if response.status != StatusCode::OK {
                         api_stats.inc_error();
+                    } else {
+                        let round_trip_time = response.request_start.elapsed().as_micros() as u64;
+                        api_stats.inc_rtt(round_trip_time);
+                        api_stats.inc_success();
                     }
                 }
             }
@@ -120,29 +152,30 @@ impl Runner {
             //
             // let api_stats = Arc::clone(&api_stats);
             // tokio::task::spawn(async move {
-            for future in response_futures {
-                let response = future.await.unwrap();
-                log::debug!("Response Status: {:?}", response.status);
-                log::debug!("Response Body: {:?}", response.body);
-
-                api_stats.inc_retry(response.retry_count.into());
-
-                if response.status != StatusCode::OK {
-                    api_stats.inc_error();
-                } else {
-                    let round_trip_time = response.request_start.elapsed().as_micros() as u64;
-                    api_stats.inc_rtt(round_trip_time);
-                    api_stats.inc_success();
-
-                    Self::run_scenario_sub(&mut client, self.subsequent_scenarios.clone(), 0).await;
-                }
-            }
+            // for future in response_futures {
+            //     let response = future.await.unwrap();
+            //     log::debug!("Response Status: {:?}", response.status);
+            //     log::debug!("Response Body: {:?}", response.body);
+            //
+            //     api_stats.inc_retry(response.retry_count.into());
+            //
+            //     if response.status != StatusCode::OK {
+            //         api_stats.inc_error();
+            //     } else {
+            //         let round_trip_time = response.request_start.elapsed().as_micros() as u64;
+            //         api_stats.inc_rtt(round_trip_time);
+            //         api_stats.inc_success();
+            //     }
+            // }
             // });
         }
 
         while api_stats.get_success() + api_stats.get_error() < total_requests {
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
+
+        // Terminate the event loop
+        tx.send(Event::Terminate).await.unwrap();
 
         let success_count = api_stats.get_success();
         let error_count = api_stats.get_error();
@@ -175,93 +208,33 @@ impl Runner {
         Ok(report)
     }
 
-    // async fn run_scenario(
-    //     client: &mut SendRequest<Bytes>,
-    //     scenario: ScenarioParameter,
-    // ) -> Result<JoinHandle<HttpResponse>, Box<dyn Error>> {
-    //     let http_request = HttpRequest {
-    //         uri: scenario.uri.clone(),
-    //         method: scenario.method.clone(),
-    //         body: scenario.body.clone(),
-    //     };
-    //     let future = send_request(client, http_request).await?;
-    //     log::debug!("First Request sent");
-    //     // match future {
-    //     //     Ok(future) => response_futures.push(future),
-    //     //     Err(_e) => {
-    //     //         // log::error!("Error sending request: {}", e);
-    //     //         api_stats.inc_error();
-    //     //     }
-    //     // }
-    //     Ok(tokio::task::spawn(async move {
-    //         let response = future.await.unwrap();
-    //         log::debug!("Response Status: {:?}", response.status);
-    //         log::debug!("Response Body: {:?}", response.body);
-    //
-    //         // api_stats.inc_retry(response.retry_count.into());
-    //
-    //         if response.status != StatusCode::OK {
-    //             // api_stats.inc_error();
-    //         } else {
-    //             // let round_trip_time = response.request_start.elapsed().as_micros() as u64;
-    //             // api_stats.inc_rtt(round_trip_time);
-    //             // api_stats.inc_success();
-    //         }
-    //         // let response = Self::run_scenario_sub(client, scenarios, 0).await;
-    //
-    //         response
-    //     }))
-    // }
-
-    fn run_scenario_sub<'a>(
-        client: &'a mut SendRequest<Bytes>,
-        scenarios: Vec<ScenarioParameter>,
-        idx: usize,
-    ) -> BoxFuture<'a, JoinHandle<HttpResponse>> {
-        async move {
-            let scenario = scenarios.get(idx).unwrap();
-            let http_request = HttpRequest {
-                uri: scenario.uri.clone(),
-                method: scenario.method.clone(),
-                body: scenario.body.clone(),
-            };
-            let future = send_request(client, http_request).await.unwrap();
-            log::debug!("{} Request sent", idx);
-            // match future {
-            //     Ok(future) => response_futures.push(future),
-            //     Err(_e) => {
-            //         // log::error!("Error sending request: {}", e);
-            //         api_stats.inc_error();
-            //     }
-            // }
-
-            tokio::task::spawn(async move {
-                let response = future.await.unwrap();
-                log::debug!("Response Status: {:?}", response.status);
-                log::debug!("Response Body: {:?}", response.body);
-
-                // api_stats.inc_retry(response.retry_count.into());
-
-                if response.status != StatusCode::OK {
-                    // api_stats.inc_error();
-                } else {
-                    // let round_trip_time = response.request_start.elapsed().as_micros() as u64;
-                    // api_stats.inc_rtt(round_trip_time);
-                    // api_stats.inc_success();
+    async fn event_loop(
+        mut client: SendRequest<Bytes>,
+        mut rx: Receiver<Event>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        while let Some(event) = rx.recv().await {
+            match event {
+                Event::SendMessage(request, tx) => {
+                    // TODO remove unwrap
+                    let future = send_request(&mut client, request).await.unwrap();
+                    tokio::spawn(async move {
+                        let response = future.await.unwrap();
+                        tx.send(response).await.unwrap();
+                    });
                 }
-
-                // let response = if idx + 1 < scenarios.len() {
-                //     let next_future = Self::run_scenario_sub(client, scenarios, idx + 1);
-                //     let next_future = next_future.fuse().await.await;
-                //     next_future.unwrap()
-                // } else {
-                //     response
-                // };
-                response
-            })
+                Event::Terminate => {
+                    log::info!("Terminating event loop");
+                    break;
+                }
+            }
         }
-        .boxed()
+        Ok(())
     }
+}
+
+enum Event {
+    SendMessage(HttpRequest, Sender<HttpResponse>),
+    Terminate,
 }
 
 #[derive(Debug, Clone)]
