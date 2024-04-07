@@ -2,6 +2,7 @@ use crate::config;
 use crate::config::RunnerConfig;
 use crate::http_api::{send_request, HttpRequest, HttpResponse};
 use crate::stats::ApiStats;
+// use crate::stats::RequestStats;
 use bytes::Bytes;
 use h2::client;
 use h2::client::SendRequest;
@@ -82,7 +83,8 @@ impl Runner {
         let param = &self.param;
         let total_iterations = param.total_requests as f64 / param.batch_size as f64;
         let total_iterations = total_iterations.ceil() as u32;
-        let total_requests = total_iterations * param.batch_size;
+        let total_scenarios = self.subsequent_scenarios.len() as u32 + 1;
+        let total_requests = total_iterations * param.batch_size * total_scenarios;
 
         log::info!(
             "Sending Total Req: {}, Iteration: {}, Target TPS: {}, Batch Size: {}, Interval: {}",
@@ -94,7 +96,7 @@ impl Runner {
         );
 
         let start = Instant::now();
-        let api_stats = Arc::new(ApiStats::new());
+        let scenario_stats = Arc::new(ApiStats::new());
 
         let mut interval = time::interval(param.interval);
         for _ in 0..total_iterations {
@@ -121,27 +123,26 @@ impl Runner {
                 //     Ok(future) => response_futures.push(future),
                 //     Err(_e) => {
                 //         // log::error!("Error sending request: {}", e);
-                //         api_stats.inc_error();
+                //         scenario_stats.inc_error();
                 //     }
                 // }
             }
 
-            let total_scenarios = self.subsequent_scenarios.len() as u32;
-            let total_response = param.batch_size * total_scenarios + 2;
+            let total_response = param.batch_size * total_scenarios;
 
             for _ in 0..total_response {
                 if let Some((ctx, response)) = resp_rx.recv().await {
                     log::debug!("Response Status: {:?}", response.status);
                     log::debug!("Response Body: {:?}", response.body);
 
-                    api_stats.inc_retry(response.retry_count.into());
+                    scenario_stats.inc_retry(response.retry_count.into());
 
                     if response.status != StatusCode::OK {
-                        api_stats.inc_error();
+                        scenario_stats.inc_error();
                     } else {
                         let round_trip_time = response.request_start.elapsed().as_micros() as u64;
-                        api_stats.inc_rtt(round_trip_time);
-                        api_stats.inc_success();
+                        scenario_stats.inc_rtt(round_trip_time);
+                        scenario_stats.inc_success();
 
                         let scenario_id = ctx.scenario_id;
                         if let Some(scenario) = self.subsequent_scenarios.get(scenario_id) {
@@ -169,38 +170,38 @@ impl Runner {
             // This will make the load-generator fully asynchronous and non-blocking
             // Otherwise, it will be partially blocking.
             //
-            // let api_stats = Arc::clone(&api_stats);
+            // let scenario_stats = Arc::clone(&scenario_stats);
             // tokio::task::spawn(async move {
             // for future in response_futures {
             //     let response = future.await.unwrap();
             //     log::debug!("Response Status: {:?}", response.status);
             //     log::debug!("Response Body: {:?}", response.body);
             //
-            //     api_stats.inc_retry(response.retry_count.into());
+            //     scenario_stats.inc_retry(response.retry_count.into());
             //
             //     if response.status != StatusCode::OK {
-            //         api_stats.inc_error();
+            //         scenario_stats.inc_error();
             //     } else {
             //         let round_trip_time = response.request_start.elapsed().as_micros() as u64;
-            //         api_stats.inc_rtt(round_trip_time);
-            //         api_stats.inc_success();
+            //         scenario_stats.inc_rtt(round_trip_time);
+            //         scenario_stats.inc_success();
             //     }
             // }
             // });
         }
 
-        while api_stats.get_success() + api_stats.get_error() < total_requests {
+        while scenario_stats.get_success() + scenario_stats.get_error() < total_requests {
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
 
         // Terminate the event loop
         tx.send(Event::Terminate).await.unwrap();
 
-        let success_count = api_stats.get_success();
-        let error_count = api_stats.get_error();
+        let success_count = scenario_stats.get_success();
+        let error_count = scenario_stats.get_error();
         let total_count = success_count + error_count;
-        let total_rtt = Duration::from_micros(api_stats.get_rtt());
-        let total_retry = api_stats.get_retry();
+        let total_rtt = Duration::from_micros(scenario_stats.get_rtt());
+        let total_retry = scenario_stats.get_retry();
 
         let elapsed = start.elapsed();
         let elapsed_s = elapsed.as_secs() as f64 + elapsed.subsec_millis() as f64 / 1000.0;
@@ -234,24 +235,47 @@ impl Runner {
         while let Some(event) = rx.recv().await {
             match event {
                 Event::SendMessage(ctx, request, tx) => {
-                    // TODO remove unwrap
                     let future = send_request(&mut client, request).await?;
                     log::debug!("Request {} sent", ctx.scenario_id);
+
                     // let future = send_request(&mut client, request).await.unwrap();
                     // match future {
                     //     Ok(future) => response_futures.push(future),
                     //     Err(_e) => {
                     //         // log::error!("Error sending request: {}", e);
-                    //         api_stats.inc_error();
+                    //         scenario_stats.inc_error();
                     //     }
                     // }
-                    let scenario_id = ctx.scenario_id;
                     tokio::spawn(async move {
-                        let response = future.await.unwrap();
-                        log::debug!("Respnse {} received ", scenario_id);
-                        tx.send((EventContext { scenario_id }, response))
-                            .await
-                            .unwrap();
+                        // let response = future.await.unwrap();
+                        // stats.inc_success();
+                        match future.await {
+                            Ok(response) => {
+                                // TODO return both error and success
+                                tx.send((
+                                    EventContext {
+                                        scenario_id: ctx.scenario_id,
+                                    },
+                                    response,
+                                ))
+                                .await
+                                .unwrap();
+                            }
+                            Err(_) => {
+                                // TODO
+                                panic!("Error sending request");
+                            }
+                        }
+
+                        // tx.send((
+                        //     EventContext {
+                        //         scenario_id: ctx.scenario_id,
+                        //         stats: ctx.stats,
+                        //     },
+                        //     response,
+                        // ))
+                        // .await
+                        // .unwrap();
                     });
                 }
                 Event::Terminate => {

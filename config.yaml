@@ -2,7 +2,7 @@ log_level: "Debug"
 parallel: 1
 runner:
   target_tps: 1
-  duration: "5s"
+  duration: "12s"
   batch_size: 2
   # batch_size: "Auto"
   # auto_throttle: true
