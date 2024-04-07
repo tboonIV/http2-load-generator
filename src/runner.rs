@@ -100,23 +100,20 @@ impl Runner {
         for _ in 0..total_iterations {
             interval.tick().await;
 
-            // let mut count = 0;
             let (resp_tx, mut resp_rx) = channel(32);
-            // let mut response_futures = vec![];
+
             for _ in 0..param.batch_size {
                 let scenario = self.first_scenario.clone();
-
                 let http_request = HttpRequest {
                     uri: scenario.uri.clone(),
                     method: scenario.method.clone(),
                     body: scenario.body.clone(),
                 };
-                // let future = send_request(&mut client, http_request).await;
 
                 let ctx = EventContext { scenario_id: 0 };
                 tx.send(Event::SendMessage(ctx, http_request, resp_tx.clone()))
-                    .await
-                    .unwrap();
+                    .await?;
+
                 // log::debug!("First Request {} sent", count);
                 // count += 1;
                 // let future = Self::run_scenario(&mut client, scenario).await;
@@ -129,7 +126,10 @@ impl Runner {
                 // }
             }
 
-            for _i in 0..6 {
+            let total_scenarios = self.subsequent_scenarios.len() as u32;
+            let total_response = param.batch_size * total_scenarios + 2;
+
+            for _ in 0..total_response {
                 if let Some((ctx, response)) = resp_rx.recv().await {
                     log::debug!("Response Status: {:?}", response.status);
                     log::debug!("Response Body: {:?}", response.body);
@@ -143,28 +143,24 @@ impl Runner {
                         api_stats.inc_rtt(round_trip_time);
                         api_stats.inc_success();
 
-                        // TODO
-                        log::debug!("Scenario ID: {}", ctx.scenario_id);
-
-                        if ctx.scenario_id < self.subsequent_scenarios.len() {
-                            let scenario = self.subsequent_scenarios.get(ctx.scenario_id).unwrap();
+                        let scenario_id = ctx.scenario_id;
+                        if let Some(scenario) = self.subsequent_scenarios.get(scenario_id) {
                             let http_request = HttpRequest {
                                 uri: scenario.uri.clone(),
                                 method: scenario.method.clone(),
                                 body: scenario.body.clone(),
                             };
-                            let scenario_id = ctx.scenario_id + 1;
 
-                            log::debug!("Request Body: {:?}", http_request.body);
                             tx.send(Event::SendMessage(
-                                EventContext { scenario_id },
+                                EventContext {
+                                    scenario_id: scenario_id + 1,
+                                },
                                 http_request,
                                 resp_tx.clone(),
                             ))
-                            .await
-                            .unwrap();
-                            log::debug!("Subsequent Request {} sent", scenario_id);
-                            // count += 1;
+                            .await?;
+                        } else {
+                            //log::debug!("All scenarios completed
                         }
                     }
                 }
