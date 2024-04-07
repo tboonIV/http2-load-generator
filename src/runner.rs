@@ -45,16 +45,13 @@ impl Runner {
             .or_else(|| url.strip_prefix("https://"))
             .unwrap_or(&url);
         let address = address.trim_end_matches('/');
-        log::debug!("Target Address: {}", address);
 
         // scenarios
         let mut subsequent_scenarios = vec![];
         let first_scenario = config.scenarios.get(0).ok_or("No scenario defined")?;
-
         for scenario_config in config.scenarios.iter().skip(1) {
             subsequent_scenarios.push(scenario_config.into());
         }
-        log::debug!("Scenarios: {:?}", subsequent_scenarios);
 
         Ok(Runner {
             param: RunParameter::new(config.target_tps, duration_s, batch_size),
@@ -96,7 +93,7 @@ impl Runner {
         );
 
         let start = Instant::now();
-        let scenario_stats = Arc::new(ApiStats::new());
+        let api_stats = Arc::new(ApiStats::new());
 
         let mut interval = time::interval(param.interval);
         for _ in 0..total_iterations {
@@ -115,17 +112,6 @@ impl Runner {
                 let ctx = EventContext { scenario_id: 0 };
                 tx.send(Event::SendMessage(ctx, http_request, resp_tx.clone()))
                     .await?;
-
-                // log::debug!("First Request {} sent", count);
-                // count += 1;
-                // let future = Self::run_scenario(&mut client, scenario).await;
-                // match future {
-                //     Ok(future) => response_futures.push(future),
-                //     Err(_e) => {
-                //         // log::error!("Error sending request: {}", e);
-                //         scenario_stats.inc_error();
-                //     }
-                // }
             }
 
             let total_response = param.batch_size * total_scenarios;
@@ -135,15 +121,18 @@ impl Runner {
                     log::debug!("Response Status: {:?}", response.status);
                     log::debug!("Response Body: {:?}", response.body);
 
-                    scenario_stats.inc_retry(response.retry_count.into());
+                    api_stats.inc_retry(response.retry_count.into());
 
                     if response.status != StatusCode::OK {
-                        scenario_stats.inc_error();
+                        // Error Stats
+                        api_stats.inc_error();
                     } else {
+                        // Success Stats
                         let round_trip_time = response.request_start.elapsed().as_micros() as u64;
-                        scenario_stats.inc_rtt(round_trip_time);
-                        scenario_stats.inc_success();
+                        api_stats.inc_rtt(round_trip_time);
+                        api_stats.inc_success();
 
+                        // Check if there are subsequent scenarios
                         let scenario_id = ctx.scenario_id;
                         if let Some(scenario) = self.subsequent_scenarios.get(scenario_id) {
                             let http_request = HttpRequest {
@@ -166,52 +155,30 @@ impl Runner {
                     }
                 }
             }
-
-            // This will make the load-generator fully asynchronous and non-blocking
-            // Otherwise, it will be partially blocking.
-            //
-            // let scenario_stats = Arc::clone(&scenario_stats);
-            // tokio::task::spawn(async move {
-            // for future in response_futures {
-            //     let response = future.await.unwrap();
-            //     log::debug!("Response Status: {:?}", response.status);
-            //     log::debug!("Response Body: {:?}", response.body);
-            //
-            //     scenario_stats.inc_retry(response.retry_count.into());
-            //
-            //     if response.status != StatusCode::OK {
-            //         scenario_stats.inc_error();
-            //     } else {
-            //         let round_trip_time = response.request_start.elapsed().as_micros() as u64;
-            //         scenario_stats.inc_rtt(round_trip_time);
-            //         scenario_stats.inc_success();
-            //     }
-            // }
-            // });
         }
 
-        while scenario_stats.get_success() + scenario_stats.get_error() < total_requests {
-            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        }
+        // while api_stats.get_success() + api_stats.get_error() < total_requests {
+        //     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        // }
 
         // Terminate the event loop
         tx.send(Event::Terminate).await.unwrap();
 
-        let success_count = scenario_stats.get_success();
-        let error_count = scenario_stats.get_error();
+        let success_count = api_stats.get_success();
+        let error_count = api_stats.get_error();
         let total_count = success_count + error_count;
-        let total_rtt = Duration::from_micros(scenario_stats.get_rtt());
-        let total_retry = scenario_stats.get_retry();
+        let total_rtt = Duration::from_micros(api_stats.get_rtt());
+        let total_retry = api_stats.get_retry();
 
         let elapsed = start.elapsed();
         let elapsed_s = elapsed.as_secs() as f64 + elapsed.subsec_millis() as f64 / 1000.0;
-        let tps = success_count as f64 / (elapsed.as_micros() as f64 / 1_000_000.0);
+        let rps = success_count as f64 / (elapsed.as_micros() as f64 / 1_000_000.0);
         let avg_rtt = total_rtt.as_millis() as f64 / success_count as f64;
 
         log::info!(
-            "Elapsed: {:.3}s, TPS: {:.3}, RTT: {:.3}ms, Error: ({}/{}), Retry: {}",
+            "Elapsed: {:.3}s, RPS: {:.3}, RTT: {:.3}ms, Error: ({}/{}), Retry: {}",
             elapsed_s,
-            tps,
+            rps,
             avg_rtt,
             error_count,
             total_count,
@@ -219,7 +186,7 @@ impl Runner {
         );
 
         let report = RunReport {
-            tps,
+            rps,
             elapsed,
             success_count,
             error_count,
@@ -235,23 +202,13 @@ impl Runner {
         while let Some(event) = rx.recv().await {
             match event {
                 Event::SendMessage(ctx, request, tx) => {
-                    let future = send_request(&mut client, request).await?;
+                    let future = send_request(&mut client, request).await?; // handle error?
                     log::debug!("Request {} sent", ctx.scenario_id);
 
-                    // let future = send_request(&mut client, request).await.unwrap();
-                    // match future {
-                    //     Ok(future) => response_futures.push(future),
-                    //     Err(_e) => {
-                    //         // log::error!("Error sending request: {}", e);
-                    //         scenario_stats.inc_error();
-                    //     }
-                    // }
                     tokio::spawn(async move {
-                        // let response = future.await.unwrap();
-                        // stats.inc_success();
                         match future.await {
+                            // TODO return both error and success
                             Ok(response) => {
-                                // TODO return both error and success
                                 tx.send((
                                     EventContext {
                                         scenario_id: ctx.scenario_id,
@@ -363,7 +320,7 @@ impl RunParameter {
 }
 
 pub struct RunReport {
-    pub tps: f64,
+    pub rps: f64,
     pub elapsed: Duration,
     pub success_count: u32,
     pub error_count: u32,
@@ -371,7 +328,7 @@ pub struct RunReport {
 }
 
 pub struct AggregatedReport {
-    pub total_tps: f64,
+    pub total_rps: f64,
     pub elapsed: Duration,
     pub total_success: u32,
     pub total_error: u32,
@@ -381,7 +338,7 @@ pub struct AggregatedReport {
 impl AggregatedReport {
     pub fn new() -> AggregatedReport {
         AggregatedReport {
-            total_tps: 0.0,
+            total_rps: 0.0,
             elapsed: Duration::from_secs(0),
             total_success: 0,
             total_error: 0,
@@ -390,7 +347,7 @@ impl AggregatedReport {
     }
 
     pub fn add(&mut self, report: RunReport) {
-        self.total_tps += report.tps;
+        self.total_rps += report.rps;
         self.elapsed = self.elapsed.max(report.elapsed);
         self.total_success += report.success_count;
         self.total_error += report.error_count;
@@ -403,7 +360,7 @@ impl AggregatedReport {
 
         let avg_rtt = self.total_rtt.as_millis() as f64 / self.total_success as f64;
 
-        log::info!("Total TPS: {:.3}", self.total_tps);
+        log::info!("Total RPS: {:.3}", self.total_rps);
         log::info!("Average Round Trip: {:.4}ms", avg_rtt);
         log::info!("Elapsed: {:.3}s", elapsed_s);
         log::info!(
