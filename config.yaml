@@ -1,8 +1,9 @@
 log_level: "Info"
 parallel: 4
 runner:
-  target_tps: 10000
+  target_tps: 3000
   duration: "10s"
+  # batch_size: 2
   batch_size: "Auto"
   # auto_throttle: true
   base_url: "http://localhost:8080"
@@ -19,6 +20,28 @@ runner:
           "$": "MtxRequestSubscriberCreate",
           "Name": "James Bond",
           "FirstName": "James",
+          "LastName": "Bond",
+          "ContactEmail": "james.bond@email.com"
+        }
+    - name: createSubscriber2
+      method: POST
+      path: "/rsgateway/data/json/subscriber"
+      body: |
+        {
+          "$": "MtxRequestSubscriberCreate",
+          "Name": "James Bond",
+          "FirstName": "James2",
+          "LastName": "Bond",
+          "ContactEmail": "james.bond@email.com"
+        }
+    - name: createSubscriber3
+      method: POST
+      path: "/rsgateway/data/json/subscriber"
+      body: |
+        {
+          "$": "MtxRequestSubscriberCreate",
+          "Name": "James Bond",
+          "FirstName": "James3",
           "LastName": "Bond",
           "ContactEmail": "james.bond@email.com"
         }

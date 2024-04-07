@@ -1,4 +1,5 @@
 mod config;
+mod event_loop;
 mod http_api;
 mod runner;
 mod stats;
