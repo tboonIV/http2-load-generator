@@ -3,7 +3,6 @@ use crate::config::RunnerConfig;
 use crate::http_api::{send_request, HttpRequest, HttpResponse};
 use crate::stats::ApiStats;
 use bytes::Bytes;
-use futures::future::{BoxFuture, FutureExt};
 use h2::client;
 use h2::client::SendRequest;
 use http::Method;
@@ -14,7 +13,6 @@ use std::time::Instant;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::channel;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::task::JoinHandle;
 use tokio::time;
 use tokio::time::Duration;
 
@@ -67,7 +65,7 @@ impl Runner {
 
     pub async fn run(&self) -> Result<RunReport, Box<dyn Error>> {
         let tcp = TcpStream::connect(&self.target_address).await?;
-        let (mut client, h2) = client::handshake(tcp).await?;
+        let (client, h2) = client::handshake(tcp).await?;
 
         tokio::task::spawn(async move {
             if let Err(e) = h2.await {
@@ -102,7 +100,7 @@ impl Runner {
         for _ in 0..total_iterations {
             interval.tick().await;
 
-            let mut count = 0;
+            // let mut count = 0;
             let (resp_tx, mut resp_rx) = channel(32);
             // let mut response_futures = vec![];
             for _ in 0..param.batch_size {
@@ -115,11 +113,12 @@ impl Runner {
                 };
                 // let future = send_request(&mut client, http_request).await;
 
-                tx.send(Event::SendMessage(http_request, resp_tx.clone()))
+                let ctx = EventContext { scenario_id: 0 };
+                tx.send(Event::SendMessage(ctx, http_request, resp_tx.clone()))
                     .await
                     .unwrap();
-                log::debug!("Request {} sent", count);
-                count += 1;
+                // log::debug!("First Request {} sent", count);
+                // count += 1;
                 // let future = Self::run_scenario(&mut client, scenario).await;
                 // match future {
                 //     Ok(future) => response_futures.push(future),
@@ -130,10 +129,10 @@ impl Runner {
                 // }
             }
 
-            for i in 0..count {
-                if let Some(response) = resp_rx.recv().await {
-                    log::debug!("Response {} Status: {:?}", i, response.status);
-                    log::debug!("Response {} Body: {:?}", i, response.body);
+            for _i in 0..6 {
+                if let Some((ctx, response)) = resp_rx.recv().await {
+                    log::debug!("Response Status: {:?}", response.status);
+                    log::debug!("Response Body: {:?}", response.body);
 
                     api_stats.inc_retry(response.retry_count.into());
 
@@ -143,6 +142,30 @@ impl Runner {
                         let round_trip_time = response.request_start.elapsed().as_micros() as u64;
                         api_stats.inc_rtt(round_trip_time);
                         api_stats.inc_success();
+
+                        // TODO
+                        log::debug!("Scenario ID: {}", ctx.scenario_id);
+
+                        if ctx.scenario_id < self.subsequent_scenarios.len() {
+                            let scenario = self.subsequent_scenarios.get(ctx.scenario_id).unwrap();
+                            let http_request = HttpRequest {
+                                uri: scenario.uri.clone(),
+                                method: scenario.method.clone(),
+                                body: scenario.body.clone(),
+                            };
+                            let scenario_id = ctx.scenario_id + 1;
+
+                            log::debug!("Request Body: {:?}", http_request.body);
+                            tx.send(Event::SendMessage(
+                                EventContext { scenario_id },
+                                http_request,
+                                resp_tx.clone(),
+                            ))
+                            .await
+                            .unwrap();
+                            log::debug!("Subsequent Request {} sent", scenario_id);
+                            // count += 1;
+                        }
                     }
                 }
             }
@@ -214,12 +237,25 @@ impl Runner {
     ) -> Result<(), Box<dyn std::error::Error>> {
         while let Some(event) = rx.recv().await {
             match event {
-                Event::SendMessage(request, tx) => {
+                Event::SendMessage(ctx, request, tx) => {
                     // TODO remove unwrap
-                    let future = send_request(&mut client, request).await.unwrap();
+                    let future = send_request(&mut client, request).await?;
+                    log::debug!("Request {} sent", ctx.scenario_id);
+                    // let future = send_request(&mut client, request).await.unwrap();
+                    // match future {
+                    //     Ok(future) => response_futures.push(future),
+                    //     Err(_e) => {
+                    //         // log::error!("Error sending request: {}", e);
+                    //         api_stats.inc_error();
+                    //     }
+                    // }
+                    let scenario_id = ctx.scenario_id;
                     tokio::spawn(async move {
                         let response = future.await.unwrap();
-                        tx.send(response).await.unwrap();
+                        log::debug!("Respnse {} received ", scenario_id);
+                        tx.send((EventContext { scenario_id }, response))
+                            .await
+                            .unwrap();
                     });
                 }
                 Event::Terminate => {
@@ -232,8 +268,24 @@ impl Runner {
     }
 }
 
+// #[derive(Debug)]
+// enum EventError {
+//     SendMessageError(String),
+// }
+
+// unsafe impl Send for EventError {}
+//
+
+struct EventContext {
+    scenario_id: usize,
+}
+
 enum Event {
-    SendMessage(HttpRequest, Sender<HttpResponse>),
+    SendMessage(
+        EventContext,
+        HttpRequest,
+        Sender<(EventContext, HttpResponse)>,
+    ),
     Terminate,
 }
 
