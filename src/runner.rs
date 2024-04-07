@@ -2,7 +2,6 @@ use crate::config;
 use crate::config::RunnerConfig;
 use crate::http_api::{send_request, HttpRequest, HttpResponse};
 use crate::stats::ApiStats;
-// use crate::stats::RequestStats;
 use bytes::Bytes;
 use h2::client;
 use h2::client::SendRequest;
