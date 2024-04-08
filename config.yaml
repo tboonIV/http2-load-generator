@@ -6,9 +6,9 @@ runner:
   batch_size: "Auto"
   # auto_throttle: true
   base_url: "http://localhost:8080"
-  variables:
-    - name: COUNTER
-      type: incremental
+  # variables:
+  #   - name: COUNTER
+  #     type: incremental
   # delay_between_scenario: "500ms"
   scenarios:
     - name: createSubscriber

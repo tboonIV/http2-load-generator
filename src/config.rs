@@ -43,7 +43,7 @@ pub struct RunnerConfig {
     pub batch_size: BatchSize,
     // pub auto_throttle: bool,
     pub base_url: String,
-    pub variables: Vec<Variable>,
+    // pub variables: Vec<Variable>,
     // #[serde(deserialize_with = "humantime_duration_deserializer")]
     // pub delay_between_scenario: Duration,
     pub scenarios: Vec<Scenario>,
@@ -103,9 +103,9 @@ mod tests {
           batch_size: 5
           # auto_throttle: true
           base_url: "http://localhost:8080/"
-          variables:
-            - name: COUNTER
-              type: incremental
+          # variables:
+          #   - name: COUNTER
+          #     type: incremental
           # delay_between_scenario: 500ms
           scenarios:
             - name: createSubscriber
@@ -132,9 +132,9 @@ mod tests {
         assert_eq!(config.runner.batch_size, BatchSize::Fixed(5));
         // assert_eq!(config.runner.auto_throttle, true);
         assert_eq!(config.runner.base_url, "http://localhost:8080/".to_string());
-        assert_eq!(config.runner.variables.len(), 1);
-        assert_eq!(config.runner.variables[0].name, "COUNTER");
-        assert_eq!(config.runner.variables[0].variable_type, "incremental");
+        // assert_eq!(config.runner.variables.len(), 1);
+        // assert_eq!(config.runner.variables[0].name, "COUNTER");
+        // assert_eq!(config.runner.variables[0].variable_type, "incremental");
         // assert_eq!(
         //     config.runner.delay_between_scenario,
         //     Duration::from_millis(500)

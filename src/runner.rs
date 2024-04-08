@@ -71,10 +71,10 @@ impl Runner {
             }
         });
 
-        let (tx, rx) = channel(32);
+        let (eventloop_tx, eventloop_rx) = channel(32);
         tokio::spawn(async move {
             // TODO remove unwrap
-            Self::event_loop(client, rx).await.unwrap();
+            Self::event_loop(client, eventloop_rx).await.unwrap();
         });
 
         let param = &self.param;
@@ -111,7 +111,8 @@ impl Runner {
                 };
 
                 let ctx = EventContext { scenario_id: 0 };
-                tx.send(Event::SendMessage(ctx, http_request, resp_tx.clone()))
+                eventloop_tx
+                    .send(Event::SendMessage(ctx, http_request, resp_tx.clone()))
                     .await?;
             }
 
@@ -142,14 +143,15 @@ impl Runner {
                                 body: scenario.body.clone(),
                             };
 
-                            tx.send(Event::SendMessage(
-                                EventContext {
-                                    scenario_id: scenario_id + 1,
-                                },
-                                http_request,
-                                resp_tx.clone(),
-                            ))
-                            .await?;
+                            eventloop_tx
+                                .send(Event::SendMessage(
+                                    EventContext {
+                                        scenario_id: scenario_id + 1,
+                                    },
+                                    http_request,
+                                    resp_tx.clone(),
+                                ))
+                                .await?;
                         } else {
                             //log::debug!("All scenarios completed
                         }
@@ -163,7 +165,7 @@ impl Runner {
         // }
 
         // Terminate the event loop
-        tx.send(Event::Terminate).await.unwrap();
+        eventloop_tx.send(Event::Terminate).await.unwrap();
 
         let success_count = api_stats.get_success();
         let error_count = api_stats.get_error();
@@ -204,36 +206,14 @@ impl Runner {
             match event {
                 Event::SendMessage(ctx, request, tx) => {
                     let future = send_request(&mut client, request).await?; // handle error?
-                    log::debug!("Request {} sent", ctx.scenario_id);
+                    let scenario_id = ctx.scenario_id;
+                    log::debug!("Request {} sent", scenario_id);
 
                     tokio::spawn(async move {
-                        match future.await {
-                            // TODO return both error and success
-                            Ok(response) => {
-                                tx.send((
-                                    EventContext {
-                                        scenario_id: ctx.scenario_id,
-                                    },
-                                    response,
-                                ))
-                                .await
-                                .unwrap();
-                            }
-                            Err(_) => {
-                                // TODO
-                                panic!("Error sending request");
-                            }
-                        }
-
-                        // tx.send((
-                        //     EventContext {
-                        //         scenario_id: ctx.scenario_id,
-                        //         stats: ctx.stats,
-                        //     },
-                        //     response,
-                        // ))
-                        // .await
-                        // .unwrap();
+                        let response = future.await.unwrap(); // handle error?
+                        tx.send((EventContext { scenario_id }, response))
+                            .await
+                            .unwrap(); // handle error?
                     });
                 }
                 Event::Terminate => {
