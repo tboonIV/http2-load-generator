@@ -1,7 +1,7 @@
 log_level: "Info"
 parallel: 4
 runner:
-  target_tps: 10000
+  target_rps: 2000 
   duration: "10s"
   batch_size: "Auto"
   # auto_throttle: true
@@ -19,6 +19,17 @@ runner:
           "$": "MtxRequestSubscriberCreate",
           "Name": "James Bond",
           "FirstName": "James",
+          "LastName": "Bond",
+          "ContactEmail": "james.bond@email.com"
+        }
+    - name: createSubscriber2
+      method: POST
+      path: "/rsgateway/data/json/subscriber"
+      body: |
+        {
+          "$": "MtxRequestSubscriberCreate",
+          "Name": "James Bond",
+          "FirstName": "James2",
           "LastName": "Bond",
           "ContactEmail": "james.bond@email.com"
         }

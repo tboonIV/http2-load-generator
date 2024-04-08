@@ -51,9 +51,10 @@ impl Runner {
         for scenario_config in config.scenarios.iter().skip(1) {
             subsequent_scenarios.push(scenario_config.into());
         }
+        let scenario_count = subsequent_scenarios.len() + 1;
 
         Ok(Runner {
-            param: RunParameter::new(config.target_tps, duration_s, batch_size),
+            param: RunParameter::new(config.target_rps, duration_s, batch_size, scenario_count),
             target_address: address.into(),
             first_scenario: first_scenario.into(),
             subsequent_scenarios,
@@ -79,13 +80,14 @@ impl Runner {
         let param = &self.param;
         let total_iterations = param.total_requests as f64 / param.batch_size as f64;
         let total_iterations = total_iterations.ceil() as u32;
-        let total_scenarios = self.subsequent_scenarios.len() as u32 + 1;
-        let total_requests = total_iterations * param.batch_size * total_scenarios;
+        let scenario_count = self.param.scenario_count as u32;
+        let total_requests = total_iterations * param.batch_size * scenario_count;
 
         log::info!(
-            "Sending Total Req: {}, Iteration: {}, Target TPS: {}, Batch Size: {}, Interval: {}",
+            "Sending Total Req: {}, Iteration: {}, Target RPS: {} TPS: {}, Batch Size: {}, Interval: {}",
             total_requests,
             total_iterations,
+            param.target_rps,
             param.target_tps,
             param.batch_size,
             param.interval.as_secs_f64()
@@ -113,7 +115,7 @@ impl Runner {
                     .await?;
             }
 
-            let total_response = param.batch_size * total_scenarios;
+            let total_response = param.batch_size * scenario_count;
 
             for _ in 0..total_response {
                 if let Some((ctx, response)) = resp_rx.recv().await {
@@ -289,31 +291,40 @@ impl From<&config::Scenario> for ScenarioParameter {
 
 #[derive(Clone)]
 pub struct RunParameter {
+    pub target_rps: u32,
     pub target_tps: u32,
     pub batch_size: u32,
     pub interval: Duration,
     pub total_requests: u32,
+    pub scenario_count: usize,
 }
 
 impl RunParameter {
-    pub fn new(call_rate: u32, duration_s: u32, batch_size: Option<u32>) -> RunParameter {
-        let rps = call_rate;
+    pub fn new(
+        target_rps: u32,
+        duration_s: u32,
+        batch_size: Option<u32>,
+        scenario_count: usize,
+    ) -> RunParameter {
+        let target_tps = target_rps / scenario_count as u32;
         let batch_size = if let Some(batch_size) = batch_size {
             batch_size
         } else {
-            let batch_size = (rps / 200) as u32;
+            let batch_size = (target_tps / 200) as u32;
             let batch_size = if batch_size == 0 { 1 } else { batch_size };
             batch_size
         };
-        let batches_per_second = rps as f64 / batch_size as f64;
+        let batches_per_second = target_tps as f64 / batch_size as f64;
         let interval = Duration::from_secs_f64(1.0 / batches_per_second);
-        let total_requests = rps * duration_s;
+        let total_requests = target_tps * duration_s;
 
         RunParameter {
-            target_tps: rps,
+            target_rps,
+            target_tps,
             batch_size,
             interval,
             total_requests,
+            scenario_count,
         }
     }
 }
