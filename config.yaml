@@ -1,14 +1,14 @@
 log_level: "Info"
-parallel: 4
+parallel: 1
 runner:
-  target_rps: 2000 
-  duration: "10s"
+  target_rps: 1
+  duration: "5s"
   batch_size: "Auto"
   # auto_throttle: true
   base_url: "http://localhost:8080"
-  # variables:
-  #   - name: COUNTER
-  #     type: incremental
+  variables:
+    - name: COUNTER
+      type: Incremental
   # delay_between_scenario: "500ms"
   scenarios:
     - name: createSubscriber
@@ -22,17 +22,17 @@ runner:
           "LastName": "Bond",
           "ContactEmail": "james.bond@email.com"
         }
-    - name: createSubscriber2
-      method: POST
-      path: "/rsgateway/data/json/subscriber"
-      body: |
-        {
-          "$": "MtxRequestSubscriberCreate",
-          "Name": "James Bond",
-          "FirstName": "James2",
-          "LastName": "Bond",
-          "ContactEmail": "james.bond@email.com"
-        }
+    # - name: createSubscriber2
+    #   method: POST
+    #   path: "/rsgateway/data/json/subscriber"
+    #   body: |
+    #     {
+    #       "$": "MtxRequestSubscriberCreate",
+    #       "Name": "James Bond",
+    #       "FirstName": "James2",
+    #       "LastName": "Bond",
+    #       "ContactEmail": "james.bond@email.com"
+    #     }
     # - name: querySubscriber
     #   method: GET
     #   path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"

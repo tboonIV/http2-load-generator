@@ -1,5 +1,6 @@
 use crate::config;
 use crate::config::RunnerConfig;
+use crate::config::VariableType;
 use crate::http_api::{send_request, HttpRequest, HttpResponse};
 use crate::stats::ApiStats;
 use bytes::Bytes;
@@ -7,7 +8,9 @@ use h2::client;
 use h2::client::SendRequest;
 use http::Method;
 use http::StatusCode;
+use std::collections::HashMap;
 use std::error::Error;
+use std::sync::atomic::AtomicI32;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::TcpStream;
@@ -21,6 +24,7 @@ pub struct Runner {
     target_address: String,
     first_scenario: ScenarioParameter,
     subsequent_scenarios: Vec<ScenarioParameter>,
+    variables: HashMap<String, Box<dyn Function>>,
 }
 
 impl Runner {
@@ -45,6 +49,16 @@ impl Runner {
             .unwrap_or(&url);
         let address = address.trim_end_matches('/');
 
+        // variables
+        let mut variables = HashMap::new();
+        for variable in config.variables {
+            let v: Box<dyn Function> = match variable.variable_type {
+                VariableType::Incremental => Box::new(IncrementalVariable::new(&variable.name)),
+                VariableType::Random => Box::new(RandomVariable::new(&variable.name, 0, 100)),
+            };
+            variables.insert(variable.name, v);
+        }
+
         // scenarios
         let mut subsequent_scenarios = vec![];
         let first_scenario = config.scenarios.get(0).ok_or("No scenario defined")?;
@@ -58,6 +72,7 @@ impl Runner {
             target_address: address.into(),
             first_scenario: first_scenario.into(),
             subsequent_scenarios,
+            variables,
         })
     }
 
@@ -109,6 +124,8 @@ impl Runner {
                     method: scenario.method.clone(),
                     body: scenario.body.clone(),
                 };
+                // let counter = self.variables.get("COUNTER").unwrap();
+                // log::info!("Counter: {}", counter.get_next());
 
                 let ctx = EventContext { scenario_id: 0 };
                 eventloop_tx
@@ -245,6 +262,57 @@ enum Event {
         Sender<(EventContext, HttpResponse)>,
     ),
     Terminate,
+}
+
+pub trait Function {
+    fn get_next(&self) -> String;
+}
+
+#[derive(Debug)]
+pub struct IncrementalVariable {
+    pub name: String,
+    pub value: AtomicI32,
+}
+
+impl IncrementalVariable {
+    pub fn new(name: &str) -> IncrementalVariable {
+        IncrementalVariable {
+            name: name.into(),
+            value: AtomicI32::new(0),
+        }
+    }
+}
+
+impl Function for IncrementalVariable {
+    fn get_next(&self) -> String {
+        let value = &self.value;
+        let next = value.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        next.to_string()
+    }
+}
+
+#[derive(Debug)]
+pub struct RandomVariable {
+    pub name: String,
+    pub min: u32,
+    pub max: u32,
+}
+
+impl RandomVariable {
+    pub fn new(name: &str, min: u32, max: u32) -> RandomVariable {
+        RandomVariable {
+            name: name.into(),
+            min,
+            max,
+        }
+    }
+}
+
+impl Function for RandomVariable {
+    fn get_next(&self) -> String {
+        let value = rand::random::<u32>() % (self.max - self.min) + self.min;
+        value.to_string()
+    }
 }
 
 #[derive(Debug, Clone)]
