@@ -1,6 +1,7 @@
 mod config;
 mod http_api;
 mod runner;
+mod scenario;
 mod stats;
 
 use crate::config::read_yaml_file;

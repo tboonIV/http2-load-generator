@@ -18,7 +18,7 @@ runner:
         {
           "$": "MtxRequestSubscriberCreate",
           "Name": "James Bond",
-          "FirstName": "James",
+          "FirstName": "James_${COUNTER}",
           "LastName": "Bond",
           "ContactEmail": "james.bond@email.com"
         }

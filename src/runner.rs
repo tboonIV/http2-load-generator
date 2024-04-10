@@ -2,15 +2,17 @@ use crate::config;
 use crate::config::RunnerConfig;
 use crate::config::VariableType;
 use crate::http_api::{send_request, HttpRequest, HttpResponse};
+use crate::scenario::Function;
+use crate::scenario::IncrementalVariable;
+use crate::scenario::RandomVariable;
+use crate::scenario::ScenarioParameter;
 use crate::stats::ApiStats;
 use bytes::Bytes;
 use h2::client;
 use h2::client::SendRequest;
-use http::Method;
 use http::StatusCode;
 use std::collections::HashMap;
 use std::error::Error;
-use std::sync::atomic::AtomicI32;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::net::TcpStream;
@@ -54,7 +56,7 @@ impl Runner {
         for variable in config.variables {
             let v: Box<dyn Function> = match variable.variable_type {
                 VariableType::Incremental => Box::new(IncrementalVariable::new(&variable.name)),
-                VariableType::Random => Box::new(RandomVariable::new(&variable.name, 0, 100)),
+                VariableType::Random => Box::new(RandomVariable::new(&variable.name, 0, 100)), // TODO configurable min and max
             };
             variables.insert(variable.name, v);
         }
@@ -262,79 +264,6 @@ enum Event {
         Sender<(EventContext, HttpResponse)>,
     ),
     Terminate,
-}
-
-pub trait Function {
-    fn get_next(&self) -> String;
-}
-
-#[derive(Debug)]
-pub struct IncrementalVariable {
-    pub name: String,
-    pub value: AtomicI32,
-}
-
-impl IncrementalVariable {
-    pub fn new(name: &str) -> IncrementalVariable {
-        IncrementalVariable {
-            name: name.into(),
-            value: AtomicI32::new(0),
-        }
-    }
-}
-
-impl Function for IncrementalVariable {
-    fn get_next(&self) -> String {
-        let value = &self.value;
-        let next = value.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        next.to_string()
-    }
-}
-
-#[derive(Debug)]
-pub struct RandomVariable {
-    pub name: String,
-    pub min: u32,
-    pub max: u32,
-}
-
-impl RandomVariable {
-    pub fn new(name: &str, min: u32, max: u32) -> RandomVariable {
-        RandomVariable {
-            name: name.into(),
-            min,
-            max,
-        }
-    }
-}
-
-impl Function for RandomVariable {
-    fn get_next(&self) -> String {
-        let value = rand::random::<u32>() % (self.max - self.min) + self.min;
-        value.to_string()
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ScenarioParameter {
-    pub name: String,
-    pub uri: String,
-    pub method: Method,
-    pub body: Option<serde_json::Value>,
-}
-
-impl From<&config::Scenario> for ScenarioParameter {
-    fn from(config: &config::Scenario) -> Self {
-        ScenarioParameter {
-            name: config.name.clone(),
-            uri: config.path.clone(),
-            method: config.method.parse().unwrap(),
-            body: match &config.body {
-                Some(body) => Some(serde_json::from_str(body).unwrap()),
-                None => None,
-            },
-        }
-    }
 }
 
 #[derive(Clone)]

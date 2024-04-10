@@ -67,6 +67,8 @@ pub struct Variable {
 pub enum VariableType {
     Incremental,
     Random,
+    // ThreadId,
+    // RunnerId,
 }
 
 #[derive(Debug, Deserialize, Clone)]
