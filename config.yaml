@@ -12,27 +12,19 @@ runner:
   # delay_between_scenario: "500ms"
   scenarios:
     - name: createSubscriber
-      method: POST
-      path: "/rsgateway/data/json/subscriber"
-      body: |
-        {
-          "$": "MtxRequestSubscriberCreate",
-          "Name": "James Bond",
-          "FirstName": "James_${COUNTER}",
-          "LastName": "Bond",
-          "ContactEmail": "james.bond@email.com"
-        }
-    # - name: createSubscriber2
-    #   method: POST
-    #   path: "/rsgateway/data/json/subscriber"
-    #   body: |
-    #     {
-    #       "$": "MtxRequestSubscriberCreate",
-    #       "Name": "James Bond",
-    #       "FirstName": "James2",
-    #       "LastName": "Bond",
-    #       "ContactEmail": "james.bond@email.com"
-    #     }
+      request:
+        method: POST
+        path: "/rsgateway/data/json/subscriber"
+        body: |
+          {
+            "$": "MtxRequestSubscriberCreate",
+            "Name": "James Bond",
+            "FirstName": "James_${COUNTER}",
+            "LastName": "Bond",
+            "ContactEmail": "james.bond@email.com"
+          }
+      response:
+        status: 200
     # - name: querySubscriber
     #   method: GET
     #   path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"

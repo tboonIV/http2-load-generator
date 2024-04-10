@@ -74,9 +74,20 @@ pub enum VariableType {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Scenario {
     pub name: String,
+    pub request: Request,
+    pub response: Response,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Request {
     pub method: String,
     pub path: String,
     pub body: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Response {
+    pub status: u16,
 }
 
 pub fn read_yaml_file(path: &str) -> Result<Config, Box<dyn Error>> {
@@ -117,19 +128,25 @@ mod tests {
           # delay_between_scenario: 500ms
           scenarios:
             - name: createSubscriber
-              method: POST
-              path: "/rsgateway/data/json/subscriber"
-              body: |
-                {
-                  "$": "MtxRequestSubscriberCreate",
-                  "Name": "James Bond",
-                  "FirstName": "James",
-                  "LastName": "Bond",
-                  "ContactEmail": "james.bond@email.com"
-                }
+              request:
+                method: POST
+                path: "/rsgateway/data/json/subscriber"
+                body: |
+                  {
+                    "$": "MtxRequestSubscriberCreate",
+                    "Name": "James Bond",
+                    "FirstName": "James",
+                    "LastName": "Bond",
+                    "ContactEmail": "james.bond@email.com"
+                  }
+              response:
+                status: 200
             - name: querySubscriber
-              method: GET
-              path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
+              request:
+                method: GET
+                path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
+              response:
+                status: 200
     "#;
         let config: Config = serde_yaml::from_str(yaml_str).unwrap();
 
@@ -152,13 +169,13 @@ mod tests {
         // );
         assert_eq!(config.runner.scenarios.len(), 2);
         assert_eq!(config.runner.scenarios[0].name, "createSubscriber");
-        assert_eq!(config.runner.scenarios[0].method, "POST");
+        assert_eq!(config.runner.scenarios[0].request.method, "POST");
         assert_eq!(
-            config.runner.scenarios[0].path,
+            config.runner.scenarios[0].request.path,
             "/rsgateway/data/json/subscriber"
         );
         assert_eq!(
-            config.runner.scenarios[0].body,
+            config.runner.scenarios[0].request.body,
             Some(
                 r#"{
   "$": "MtxRequestSubscriberCreate",
@@ -171,12 +188,14 @@ mod tests {
                 .to_string()
             )
         );
+        assert_eq!(config.runner.scenarios[0].response.status, 200);
         assert_eq!(config.runner.scenarios[1].name, "querySubscriber");
-        assert_eq!(config.runner.scenarios[1].method, "GET");
+        assert_eq!(config.runner.scenarios[1].request.method, "GET");
         assert_eq!(
-            config.runner.scenarios[1].path,
+            config.runner.scenarios[1].request.path,
             "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
         );
-        assert_eq!(config.runner.scenarios[1].body, None);
+        assert_eq!(config.runner.scenarios[1].request.body, None);
+        assert_eq!(config.runner.scenarios[1].response.status, 200);
     }
 }

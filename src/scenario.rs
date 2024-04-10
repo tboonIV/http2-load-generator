@@ -3,6 +3,11 @@ use http::Method;
 use regex::Regex;
 use std::sync::atomic::AtomicI32;
 
+// TODO
+// pub struct Global {
+//     variables: HashMap<String, Variable>,
+// }
+
 #[derive(Debug, Clone)]
 pub struct ScenarioParameter {
     pub name: String,
@@ -13,7 +18,7 @@ pub struct ScenarioParameter {
 
 impl From<&config::Scenario> for ScenarioParameter {
     fn from(config: &config::Scenario) -> Self {
-        let body = match &config.body {
+        let body = match &config.request.body {
             Some(body) => {
                 let source = body;
                 let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
@@ -31,8 +36,8 @@ impl From<&config::Scenario> for ScenarioParameter {
 
         ScenarioParameter {
             name: config.name.clone(),
-            uri: config.path.clone(),
-            method: config.method.parse().unwrap(),
+            uri: config.request.path.clone(),
+            method: config.request.method.parse().unwrap(),
             body,
         }
     }
