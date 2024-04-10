@@ -1,5 +1,6 @@
 use crate::config;
 use http::Method;
+use regex::Regex;
 use std::sync::atomic::AtomicI32;
 
 #[derive(Debug, Clone)]
@@ -12,22 +13,27 @@ pub struct ScenarioParameter {
 
 impl From<&config::Scenario> for ScenarioParameter {
     fn from(config: &config::Scenario) -> Self {
-        // let body2 = match &config.body {
-        //     Some(body) => {
-        //         let body = "";
-        //         Some(body)
-        //     }
-        //     None => None,
-        // };
+        let body = match &config.body {
+            Some(body) => {
+                let source = body;
+                let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
+                for caps in variable_pattern.captures_iter(source) {
+                    let cap = caps[1].to_string();
+                    log::info!("Found variable: {}", cap);
+                    // let var = global.get_variable(&cap).unwrap();
+                    // variables.push(var);
+                }
+
+                Some(serde_json::from_str(body).unwrap())
+            }
+            None => None,
+        };
 
         ScenarioParameter {
             name: config.name.clone(),
             uri: config.path.clone(),
             method: config.method.parse().unwrap(),
-            body: match &config.body {
-                Some(body) => Some(serde_json::from_str(body).unwrap()),
-                None => None,
-            },
+            body,
         }
     }
 }
