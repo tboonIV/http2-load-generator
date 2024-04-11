@@ -9,6 +9,15 @@ runner:
   variables:
     - name: COUNTER
       type: Incremental
+      properties:
+        min: 0
+        max: 100000
+        steps: 1
+    - name: RANDOM
+      type: Random
+      properties:
+        min: 0
+        max: 100000
   # delay_between_scenario: "500ms"
   scenarios:
     - name: createSubscriber
@@ -19,7 +28,7 @@ runner:
           {
             "$": "MtxRequestSubscriberCreate",
             "Name": "James Bond",
-            "FirstName": "James_${COUNTER}",
+            "FirstName": "James_${COUNTER}_${RANDOM}",
             "LastName": "Bond",
             "ContactEmail": "james.bond@email.com"
           }

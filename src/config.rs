@@ -61,6 +61,7 @@ pub struct Variable {
     pub name: String,
     #[serde(rename = "type")]
     pub variable_type: VariableType,
+    // pub properties: VariableProperties,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -70,6 +71,30 @@ pub enum VariableType {
     // ThreadId,
     // RunnerId,
 }
+
+// #[derive(Debug, Deserialize, Clone)]
+// #[serde(tag = "type")]
+// pub enum VariableProperties {
+//     Incremental(IncrementalProperties),
+//     Random(RandomProperties),
+// }
+//
+// #[derive(Debug, Deserialize, PartialEq, Clone)]
+// pub struct IncrementalProperties {
+//     #[serde(rename = "type")]
+//     pub _type: String,
+//     pub min: i32,
+//     pub max: i32,
+//     pub steps: i32,
+// }
+//
+// #[derive(Debug, Deserialize, PartialEq, Clone)]
+// pub struct RandomProperties {
+//     #[serde(rename = "type")]
+//     pub _type: String,
+//     pub min: i32,
+//     pub max: i32,
+// }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Scenario {
@@ -125,6 +150,17 @@ mod tests {
           variables:
             - name: COUNTER
               type: Incremental
+              properties:
+                type: Incremental
+                min: 0
+                max: 100
+                steps: 1
+            - name: RANDOM
+              type: Random
+              properties:
+                type: Random
+                min: 0
+                max: 100
           # delay_between_scenario: 500ms
           scenarios:
             - name: createSubscriber
@@ -157,11 +193,16 @@ mod tests {
         assert_eq!(config.runner.batch_size, BatchSize::Fixed(5));
         // assert_eq!(config.runner.auto_throttle, true);
         assert_eq!(config.runner.base_url, "http://localhost:8080/".to_string());
-        assert_eq!(config.runner.variables.len(), 1);
+        assert_eq!(config.runner.variables.len(), 2);
         assert_eq!(config.runner.variables[0].name, "COUNTER");
         assert_eq!(
             config.runner.variables[0].variable_type,
             VariableType::Incremental
+        );
+        assert_eq!(config.runner.variables[1].name, "RANDOM");
+        assert_eq!(
+            config.runner.variables[1].variable_type,
+            VariableType::Random
         );
         // assert_eq!(
         //     config.runner.delay_between_scenario,

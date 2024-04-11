@@ -46,6 +46,7 @@ impl<'a> Scenario<'a> {
                 let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
                 for caps in variable_pattern.captures_iter(source) {
                     let cap = caps[1].to_string();
+
                     log::info!("Found variable: {}", cap);
                     // let var = global.get_variable(&cap).unwrap();
                     // variables.push(var);
@@ -71,6 +72,7 @@ impl<'a> Scenario<'a> {
             method: self.method.clone(),
             body: self.body.clone(),
         };
+
         // TODO replace variables in uri and body
         let counter = self
             .global
@@ -81,6 +83,16 @@ impl<'a> Scenario<'a> {
             .as_ref();
 
         log::info!("Counter: {}", counter.get_next());
+
+        let random = self
+            .global
+            .variables
+            .get("RANDOM")
+            .unwrap()
+            .function
+            .as_ref();
+
+        log::info!("Random: {}", random.get_next());
 
         http_request
     }
