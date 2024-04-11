@@ -1,5 +1,6 @@
 use crate::config;
 use crate::config::VariableType;
+use crate::http_api::HttpRequest;
 use http::Method;
 use regex::Regex;
 use std::collections::HashMap;
@@ -30,14 +31,14 @@ impl Global {
 }
 
 #[derive(Clone)]
-pub struct ScenarioParameter<'a> {
+pub struct Scenario<'a> {
     pub name: String,
     pub global: &'a Global,
     pub uri: String,
     pub method: Method,
     pub body: Option<serde_json::Value>,
 }
-impl<'a> ScenarioParameter<'a> {
+impl<'a> Scenario<'a> {
     pub fn new(config: &config::Scenario, global: &'a Global) -> Self {
         let body = match &config.request.body {
             Some(body) => {
@@ -55,7 +56,7 @@ impl<'a> ScenarioParameter<'a> {
             None => None,
         };
 
-        ScenarioParameter {
+        Scenario {
             name: config.name.clone(),
             global,
             uri: config.request.path.clone(),
@@ -64,7 +65,25 @@ impl<'a> ScenarioParameter<'a> {
         }
     }
 
-    // TODO next_request()
+    pub fn next_request(&self) -> HttpRequest {
+        let http_request = HttpRequest {
+            uri: self.uri.clone(),
+            method: self.method.clone(),
+            body: self.body.clone(),
+        };
+        // TODO replace variables in uri and body
+        let counter = self
+            .global
+            .variables
+            .get("COUNTER")
+            .unwrap()
+            .function
+            .as_ref();
+
+        log::info!("Counter: {}", counter.get_next());
+
+        http_request
+    }
 }
 
 pub struct Variable {

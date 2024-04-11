@@ -2,7 +2,7 @@ use crate::config;
 use crate::config::RunnerConfig;
 use crate::http_api::{send_request, HttpRequest, HttpResponse};
 use crate::scenario::Global;
-use crate::scenario::ScenarioParameter;
+use crate::scenario::Scenario;
 use crate::stats::ApiStats;
 use bytes::Bytes;
 use h2::client;
@@ -20,8 +20,8 @@ use tokio::time::Duration;
 pub struct Runner<'a> {
     param: RunParameter,
     target_address: String,
-    first_scenario: ScenarioParameter<'a>,
-    subsequent_scenarios: Vec<ScenarioParameter<'a>>,
+    first_scenario: Scenario<'a>,
+    subsequent_scenarios: Vec<Scenario<'a>>,
 }
 
 impl<'a> Runner<'a> {
@@ -55,7 +55,7 @@ impl<'a> Runner<'a> {
         }
         let mut subsequent_scenarios = vec![];
         for scenario_config in subsequent_scenarios_config.iter() {
-            subsequent_scenarios.push(ScenarioParameter::new(scenario_config, &global));
+            subsequent_scenarios.push(Scenario::new(scenario_config, &global));
         }
 
         let scenario_count = subsequent_scenarios_config.len() + 1;
@@ -63,7 +63,7 @@ impl<'a> Runner<'a> {
         Ok(Runner {
             param: RunParameter::new(config.target_rps, duration_s, batch_size, scenario_count),
             target_address: address.into(),
-            first_scenario: ScenarioParameter::new(first_scenario_config, &global),
+            first_scenario: Scenario::new(first_scenario_config, &global),
             subsequent_scenarios,
         })
     }
@@ -111,13 +111,7 @@ impl<'a> Runner<'a> {
 
             for _ in 0..param.batch_size {
                 let scenario = self.first_scenario.clone();
-                let http_request = HttpRequest {
-                    uri: scenario.uri.clone(),
-                    method: scenario.method.clone(),
-                    body: scenario.body.clone(),
-                };
-                // let counter = self.variables.get("COUNTER").unwrap();
-                // log::info!("Counter: {}", counter.get_next());
+                let http_request = scenario.next_request();
 
                 let ctx = EventContext { scenario_id: 0 };
                 eventloop_tx
@@ -146,11 +140,7 @@ impl<'a> Runner<'a> {
                         // Check if there are subsequent scenarios
                         let scenario_id = ctx.scenario_id;
                         if let Some(scenario) = self.subsequent_scenarios.get(scenario_id) {
-                            let http_request = HttpRequest {
-                                uri: scenario.uri.clone(),
-                                method: scenario.method.clone(),
-                                body: scenario.body.clone(),
-                            };
+                            let http_request = scenario.next_request();
 
                             eventloop_tx
                                 .send(Event::SendMessage(
