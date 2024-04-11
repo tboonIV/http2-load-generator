@@ -1,12 +1,33 @@
 use crate::config;
+use crate::config::VariableType;
 use http::Method;
 use regex::Regex;
+use std::collections::HashMap;
 use std::sync::atomic::AtomicI32;
 
-// TODO
-// pub struct Global {
-//     variables: HashMap<String, Variable>,
-// }
+pub struct Global {
+    variables: HashMap<String, Variable>,
+}
+
+impl Global {
+    pub fn new(configs: Vec<config::Variable>) -> Self {
+        let mut variables = HashMap::new();
+        for variable in configs {
+            let v: Box<dyn Function> = match variable.variable_type {
+                VariableType::Incremental => Box::new(IncrementalVariable::new(&variable.name)),
+                VariableType::Random => Box::new(RandomVariable::new(&variable.name, 0, 100)), // TODO configurable min and max
+            };
+            variables.insert(
+                variable.name.clone(),
+                Variable {
+                    name: variable.name,
+                    function: v,
+                },
+            );
+        }
+        Global { variables }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ScenarioParameter {
@@ -41,6 +62,13 @@ impl From<&config::Scenario> for ScenarioParameter {
             body,
         }
     }
+
+    // TODO next_request()
+}
+
+pub struct Variable {
+    pub name: String,
+    pub function: Box<dyn Function>,
 }
 
 pub trait Function {

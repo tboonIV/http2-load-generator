@@ -1,17 +1,13 @@
 use crate::config;
 use crate::config::RunnerConfig;
-use crate::config::VariableType;
 use crate::http_api::{send_request, HttpRequest, HttpResponse};
-use crate::scenario::Function;
-use crate::scenario::IncrementalVariable;
-use crate::scenario::RandomVariable;
+use crate::scenario::Global;
 use crate::scenario::ScenarioParameter;
 use crate::stats::ApiStats;
 use bytes::Bytes;
 use h2::client;
 use h2::client::SendRequest;
 use http::StatusCode;
-use std::collections::HashMap;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
@@ -26,7 +22,7 @@ pub struct Runner {
     target_address: String,
     first_scenario: ScenarioParameter,
     subsequent_scenarios: Vec<ScenarioParameter>,
-    variables: HashMap<String, Box<dyn Function>>,
+    global: Global,
 }
 
 impl Runner {
@@ -51,15 +47,8 @@ impl Runner {
             .unwrap_or(&url);
         let address = address.trim_end_matches('/');
 
-        // variables
-        let mut variables = HashMap::new();
-        for variable in config.variables {
-            let v: Box<dyn Function> = match variable.variable_type {
-                VariableType::Incremental => Box::new(IncrementalVariable::new(&variable.name)),
-                VariableType::Random => Box::new(RandomVariable::new(&variable.name, 0, 100)), // TODO configurable min and max
-            };
-            variables.insert(variable.name, v);
-        }
+        // global
+        let global = Global::new(config.variables);
 
         // scenarios
         let mut subsequent_scenarios = vec![];
@@ -74,7 +63,7 @@ impl Runner {
             target_address: address.into(),
             first_scenario: first_scenario.into(),
             subsequent_scenarios,
-            variables,
+            global,
         })
     }
 
