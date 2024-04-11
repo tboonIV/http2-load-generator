@@ -29,16 +29,16 @@ impl Global {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ScenarioParameter {
+#[derive(Clone)]
+pub struct ScenarioParameter<'a> {
     pub name: String,
+    pub global: &'a Global,
     pub uri: String,
     pub method: Method,
     pub body: Option<serde_json::Value>,
 }
-
-impl From<&config::Scenario> for ScenarioParameter {
-    fn from(config: &config::Scenario) -> Self {
+impl<'a> ScenarioParameter<'a> {
+    pub fn new(config: &config::Scenario, global: &'a Global) -> Self {
         let body = match &config.request.body {
             Some(body) => {
                 let source = body;
@@ -57,6 +57,7 @@ impl From<&config::Scenario> for ScenarioParameter {
 
         ScenarioParameter {
             name: config.name.clone(),
+            global,
             uri: config.request.path.clone(),
             method: config.request.method.parse().unwrap(),
             body,

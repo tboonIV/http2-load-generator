@@ -17,16 +17,15 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time;
 use tokio::time::Duration;
 
-pub struct Runner {
+pub struct Runner<'a> {
     param: RunParameter,
     target_address: String,
-    first_scenario: ScenarioParameter,
-    subsequent_scenarios: Vec<ScenarioParameter>,
-    global: Global,
+    first_scenario: ScenarioParameter<'a>,
+    subsequent_scenarios: Vec<ScenarioParameter<'a>>,
 }
 
-impl Runner {
-    pub fn new(config: RunnerConfig) -> Result<Runner, Box<dyn Error>> {
+impl<'a> Runner<'a> {
+    pub fn new(config: RunnerConfig, global: &'a Global) -> Result<Runner<'a>, Box<dyn Error>> {
         // batch size
         let batch_size = match config.batch_size {
             config::BatchSize::Auto(_) => None,
@@ -47,23 +46,25 @@ impl Runner {
             .unwrap_or(&url);
         let address = address.trim_end_matches('/');
 
-        // global
-        let global = Global::new(config.variables);
-
         // scenarios
-        let mut subsequent_scenarios = vec![];
-        let first_scenario = config.scenarios.get(0).ok_or("No scenario defined")?;
+        let first_scenario_config = config.scenarios.get(0).ok_or("No scenario defined")?;
+
+        let mut subsequent_scenarios_config = vec![];
         for scenario_config in config.scenarios.iter().skip(1) {
-            subsequent_scenarios.push(scenario_config.into());
+            subsequent_scenarios_config.push(scenario_config);
         }
-        let scenario_count = subsequent_scenarios.len() + 1;
+        let mut subsequent_scenarios = vec![];
+        for scenario_config in subsequent_scenarios_config.iter() {
+            subsequent_scenarios.push(ScenarioParameter::new(scenario_config, &global));
+        }
+
+        let scenario_count = subsequent_scenarios_config.len() + 1;
 
         Ok(Runner {
             param: RunParameter::new(config.target_rps, duration_s, batch_size, scenario_count),
             target_address: address.into(),
-            first_scenario: first_scenario.into(),
+            first_scenario: ScenarioParameter::new(first_scenario_config, &global),
             subsequent_scenarios,
-            global,
         })
     }
 

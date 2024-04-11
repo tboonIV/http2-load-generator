@@ -7,6 +7,7 @@ mod stats;
 use crate::config::read_yaml_file;
 use crate::runner::AggregatedReport;
 use crate::runner::Runner;
+use crate::scenario::Global;
 use chrono::Local;
 use std::error::Error;
 use std::io::Write;
@@ -53,7 +54,8 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
                 .unwrap();
 
             rt.block_on(async move {
-                let runner = Runner::new(config.runner).unwrap();
+                let global = Global::new(config.runner.variables.clone());
+                let runner = Runner::new(config.runner, &global).unwrap();
                 let report = runner.run().await.unwrap();
                 tx.send(report).await.unwrap();
             });
