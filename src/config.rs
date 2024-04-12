@@ -59,42 +59,30 @@ pub enum BatchSize {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Variable {
     pub name: String,
-    #[serde(rename = "type")]
-    pub variable_type: VariableType,
-    // pub properties: VariableProperties,
+    pub properties: VariableProperties,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-pub enum VariableType {
-    Incremental,
-    Random,
+#[serde(tag = "type")]
+pub enum VariableProperties {
+    Incremental(IncrementalProperties),
+    Random(RandomProperties),
     // ThreadId,
     // RunnerId,
 }
 
-// #[derive(Debug, Deserialize, Clone)]
-// #[serde(tag = "type")]
-// pub enum VariableProperties {
-//     Incremental(IncrementalProperties),
-//     Random(RandomProperties),
-// }
-//
-// #[derive(Debug, Deserialize, PartialEq, Clone)]
-// pub struct IncrementalProperties {
-//     #[serde(rename = "type")]
-//     pub _type: String,
-//     pub min: i32,
-//     pub max: i32,
-//     pub steps: i32,
-// }
-//
-// #[derive(Debug, Deserialize, PartialEq, Clone)]
-// pub struct RandomProperties {
-//     #[serde(rename = "type")]
-//     pub _type: String,
-//     pub min: i32,
-//     pub max: i32,
-// }
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct IncrementalProperties {
+    pub min: i32,
+    pub max: i32,
+    pub steps: i32,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct RandomProperties {
+    pub min: i32,
+    pub max: i32,
+}
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Scenario {
@@ -191,23 +179,22 @@ mod tests {
         assert_eq!(config.runner.target_rps, 100);
         assert_eq!(config.runner.duration, Duration::from_secs(10));
         assert_eq!(config.runner.batch_size, BatchSize::Fixed(5));
-        // assert_eq!(config.runner.auto_throttle, true);
         assert_eq!(config.runner.base_url, "http://localhost:8080/".to_string());
         assert_eq!(config.runner.variables.len(), 2);
         assert_eq!(config.runner.variables[0].name, "COUNTER");
         assert_eq!(
-            config.runner.variables[0].variable_type,
-            VariableType::Incremental
+            config.runner.variables[0].properties,
+            VariableProperties::Incremental(IncrementalProperties {
+                min: 0,
+                max: 100,
+                steps: 1,
+            })
         );
         assert_eq!(config.runner.variables[1].name, "RANDOM");
         assert_eq!(
-            config.runner.variables[1].variable_type,
-            VariableType::Random
+            config.runner.variables[1].properties,
+            VariableProperties::Random(RandomProperties { min: 0, max: 100 })
         );
-        // assert_eq!(
-        //     config.runner.delay_between_scenario,
-        //     Duration::from_millis(500)
-        // );
         assert_eq!(config.runner.scenarios.len(), 2);
         assert_eq!(config.runner.scenarios[0].name, "createSubscriber");
         assert_eq!(config.runner.scenarios[0].request.method, "POST");

@@ -8,14 +8,14 @@ runner:
   base_url: "http://localhost:8080"
   variables:
     - name: COUNTER
-      type: Incremental
       properties:
+        type: Incremental
         min: 0
         max: 100000
         steps: 1
     - name: RANDOM
-      type: Random
       properties:
+        type: Random
         min: 0
         max: 100000
   # delay_between_scenario: "500ms"

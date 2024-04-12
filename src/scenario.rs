@@ -1,7 +1,8 @@
 use crate::config;
-use crate::config::VariableType;
+use crate::config::VariableProperties;
 use crate::http_api::HttpRequest;
 use http::Method;
+use rand::Rng;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicI32;
@@ -14,9 +15,13 @@ impl Global {
     pub fn new(configs: Vec<config::Variable>) -> Self {
         let mut variables = HashMap::new();
         for variable in configs {
-            let v: Box<dyn Function> = match variable.variable_type {
-                VariableType::Incremental => Box::new(IncrementalVariable::new(&variable.name)),
-                VariableType::Random => Box::new(RandomVariable::new(&variable.name, 0, 100)), // TODO configurable min and max
+            let v: Box<dyn Function> = match variable.properties {
+                VariableProperties::Incremental(prop) => {
+                    Box::new(IncrementalVariable::new(&variable.name, prop))
+                }
+                VariableProperties::Random(prop) => {
+                    Box::new(RandomVariable::new(&variable.name, prop))
+                }
             };
             variables.insert(
                 variable.name.clone(),
@@ -111,13 +116,19 @@ pub trait Function {
 pub struct IncrementalVariable {
     pub name: String,
     pub value: AtomicI32,
+    pub min: i32,
+    pub max: i32,
+    pub steps: i32,
 }
 
 impl IncrementalVariable {
-    pub fn new(name: &str) -> IncrementalVariable {
+    pub fn new(name: &str, properties: config::IncrementalProperties) -> IncrementalVariable {
         IncrementalVariable {
             name: name.into(),
             value: AtomicI32::new(0),
+            min: properties.min,
+            max: properties.max,
+            steps: properties.steps,
         }
     }
 }
@@ -133,23 +144,27 @@ impl Function for IncrementalVariable {
 #[derive(Debug)]
 pub struct RandomVariable {
     pub name: String,
-    pub min: u32,
-    pub max: u32,
+    pub min: i32,
+    pub max: i32,
 }
 
 impl RandomVariable {
-    pub fn new(name: &str, min: u32, max: u32) -> RandomVariable {
+    pub fn new(name: &str, properties: config::RandomProperties) -> RandomVariable {
+        log::info!("Creating RandomVariable: {}", name);
+        log::info!("min = {}", properties.min);
+        log::info!("max = {}", properties.max);
         RandomVariable {
             name: name.into(),
-            min,
-            max,
+            min: properties.min,
+            max: properties.max,
         }
     }
 }
 
 impl Function for RandomVariable {
     fn get_next(&self) -> String {
-        let value = rand::random::<u32>() % (self.max - self.min) + self.min;
+        let mut rng = rand::thread_rng();
+        let value = rng.gen_range(self.min..=self.max);
         value.to_string()
     }
 }
