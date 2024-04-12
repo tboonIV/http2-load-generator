@@ -41,7 +41,8 @@ pub struct Scenario<'a> {
     pub global: &'a Global,
     pub uri: String,
     pub method: Method,
-    pub body: Option<serde_json::Value>,
+    // pub body: Option<serde_json::Value>,
+    pub body: Option<String>,
 }
 impl<'a> Scenario<'a> {
     pub fn new(config: &config::Scenario, global: &'a Global) -> Self {
@@ -57,7 +58,7 @@ impl<'a> Scenario<'a> {
                     // variables.push(var);
                 }
 
-                Some(serde_json::from_str(body).unwrap())
+                Some(body.to_string())
             }
             None => None,
         };
@@ -72,32 +73,30 @@ impl<'a> Scenario<'a> {
     }
 
     pub fn next_request(&self) -> HttpRequest {
+        // TODO - Skip varaible replacement if no varaibles are detected in the body
+        // TODO - Add unit test
+        // TODO - Handle URI
+        //
+        // Replace variables in the body
+        let body = match &self.body {
+            Some(body) => {
+                // This look really inefficient..
+                let mut result = body.clone();
+                for variable in self.global.variables.values() {
+                    let value = variable.function.get_next();
+                    result = result.replace(&format!("${{{}}}", variable.name), &value);
+                }
+                Some(serde_json::from_str(&result).unwrap())
+            }
+            None => None,
+        };
+        log::info!("Body: {:?}", body);
+
         let http_request = HttpRequest {
             uri: self.uri.clone(),
             method: self.method.clone(),
-            body: self.body.clone(),
+            body,
         };
-
-        // TODO replace variables in uri and body
-        let counter = self
-            .global
-            .variables
-            .get("COUNTER")
-            .unwrap()
-            .function
-            .as_ref();
-
-        log::info!("Counter: {}", counter.get_next());
-
-        let random = self
-            .global
-            .variables
-            .get("RANDOM")
-            .unwrap()
-            .function
-            .as_ref();
-
-        log::info!("Random: {}", random.get_next());
 
         http_request
     }
