@@ -9,11 +9,13 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicI32;
 
-// pub struct Request {
-//     pub uri: String,
-//     pub method: Method,
-//     pub body: Option<String>,
-// }
+#[derive(Clone)]
+pub struct Request {
+    pub uri: String,
+    pub method: Method,
+    pub body: Option<String>,
+    // pub body: Option<serde_json::Value>,
+}
 
 #[derive(Clone)]
 pub struct Response {
@@ -24,10 +26,7 @@ pub struct Response {
 pub struct Scenario<'a> {
     pub name: String,
     pub global: &'a Global,
-    pub uri: String,
-    pub method: Method,
-    // pub body: Option<serde_json::Value>,
-    pub body: Option<String>,
+    pub request: Request,
     pub response: Response,
 }
 
@@ -39,8 +38,8 @@ impl<'a> Scenario<'a> {
                 let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
                 for caps in variable_pattern.captures_iter(source) {
                     let cap = caps[1].to_string();
-
                     log::info!("Found variable: {}", cap);
+                    //
                     // let var = global.get_variable(&cap).unwrap();
                     // variables.push(var);
                 }
@@ -50,6 +49,12 @@ impl<'a> Scenario<'a> {
             None => None,
         };
 
+        let request = Request {
+            uri: config.request.path.clone(),
+            method: config.request.method.parse().unwrap(),
+            body,
+        };
+
         let response = Response {
             status: StatusCode::from_u16(config.response.status).unwrap(),
         };
@@ -57,9 +62,7 @@ impl<'a> Scenario<'a> {
         Scenario {
             name: config.name.clone(),
             global,
-            uri: config.request.path.clone(),
-            method: config.request.method.parse().unwrap(),
-            body,
+            request,
             response,
         }
     }
@@ -69,7 +72,7 @@ impl<'a> Scenario<'a> {
         // TODO - Handle URI
         //
         // Replace variables in the body
-        let body = match &self.body {
+        let body = match &self.request.body {
             Some(body) => {
                 // This look really inefficient..
                 let mut result = body.clone();
@@ -84,8 +87,8 @@ impl<'a> Scenario<'a> {
         log::debug!("Body: {:?}", body);
 
         let http_request = HttpRequest {
-            uri: self.uri.clone(),
-            method: self.method.clone(),
+            uri: self.request.uri.clone(),
+            method: self.request.method.clone(),
             body,
         };
 
@@ -245,9 +248,14 @@ mod tests {
         let scenario = Scenario {
             name: "test".into(),
             global: &global,
-            uri: "/test".into(),
-            method: Method::GET,
-            body: Some(r#"{"test": "${VAR1}_${VAR2}"}"#.into()),
+            request: Request {
+                uri: "/test".into(),
+                method: Method::GET,
+                body: Some(r#"{"test": "${VAR1}_${VAR2}"}"#.into()),
+            },
+            response: Response {
+                status: StatusCode::OK,
+            },
         };
 
         // First request

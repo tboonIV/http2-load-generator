@@ -7,7 +7,6 @@ use crate::stats::ApiStats;
 use bytes::Bytes;
 use h2::client;
 use h2::client::SendRequest;
-use http::StatusCode;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
