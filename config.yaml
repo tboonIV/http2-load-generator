@@ -10,8 +10,8 @@ runner:
     - name: COUNTER
       properties:
         type: Incremental
-        min: 0
-        max: 100000
+        start: 0
+        threshold: 100000
         steps: 1
     - name: RANDOM
       properties:

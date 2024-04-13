@@ -73,8 +73,8 @@ pub enum VariableProperties {
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct IncrementalProperties {
-    pub min: i32,
-    pub max: i32,
+    pub start: i32,
+    pub threshold: i32,
     pub steps: i32,
 }
 
@@ -140,8 +140,8 @@ mod tests {
               type: Incremental
               properties:
                 type: Incremental
-                min: 0
-                max: 100
+                start: 0
+                threshold: 100
                 steps: 1
             - name: RANDOM
               type: Random
@@ -185,8 +185,8 @@ mod tests {
         assert_eq!(
             config.runner.variables[0].properties,
             VariableProperties::Incremental(IncrementalProperties {
-                min: 0,
-                max: 100,
+                start: 0,
+                threshold: 100,
                 steps: 1,
             })
         );

@@ -16,12 +16,8 @@ impl Global {
         let mut variables = HashMap::new();
         for variable in configs {
             let v: Box<dyn Function> = match variable.properties {
-                VariableProperties::Incremental(prop) => {
-                    Box::new(IncrementalVariable::new(&variable.name, prop))
-                }
-                VariableProperties::Random(prop) => {
-                    Box::new(RandomVariable::new(&variable.name, prop))
-                }
+                VariableProperties::Incremental(prop) => Box::new(IncrementalVariable::new(prop)),
+                VariableProperties::Random(prop) => Box::new(RandomVariable::new(prop)),
             };
             variables.insert(
                 variable.name.clone(),
@@ -113,20 +109,16 @@ pub trait Function {
 
 #[derive(Debug)]
 pub struct IncrementalVariable {
-    pub name: String,
-    pub value: AtomicI32,
-    pub min: i32,
-    pub max: i32,
-    pub steps: i32,
+    value: AtomicI32,
+    threshold: i32,
+    steps: i32,
 }
 
 impl IncrementalVariable {
-    pub fn new(name: &str, properties: config::IncrementalProperties) -> IncrementalVariable {
+    pub fn new(properties: config::IncrementalProperties) -> IncrementalVariable {
         IncrementalVariable {
-            name: name.into(),
-            value: AtomicI32::new(0),
-            min: properties.min,
-            max: properties.max,
+            value: AtomicI32::new(properties.start),
+            threshold: properties.threshold,
             steps: properties.steps,
         }
     }
@@ -135,25 +127,21 @@ impl IncrementalVariable {
 impl Function for IncrementalVariable {
     fn get_next(&self) -> String {
         let value = &self.value;
-        let next = value.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let next = value.fetch_add(self.steps, std::sync::atomic::Ordering::SeqCst);
+        let next = next % (self.threshold + 1);
         next.to_string()
     }
 }
 
 #[derive(Debug)]
 pub struct RandomVariable {
-    pub name: String,
-    pub min: i32,
-    pub max: i32,
+    min: i32,
+    max: i32,
 }
 
 impl RandomVariable {
-    pub fn new(name: &str, properties: config::RandomProperties) -> RandomVariable {
-        log::info!("Creating RandomVariable: {}", name);
-        log::info!("min = {}", properties.min);
-        log::info!("max = {}", properties.max);
+    pub fn new(properties: config::RandomProperties) -> RandomVariable {
         RandomVariable {
-            name: name.into(),
             min: properties.min,
             max: properties.max,
         }
@@ -165,5 +153,97 @@ impl Function for RandomVariable {
         let mut rng = rand::thread_rng();
         let value = rng.gen_range(self.min..=self.max);
         value.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::IncrementalProperties;
+
+    #[test]
+    fn test_incremental_variable() {
+        let variable = IncrementalVariable::new(IncrementalProperties {
+            start: 0,
+            threshold: 5,
+            steps: 2,
+        });
+
+        assert_eq!(variable.get_next(), "0");
+        assert_eq!(variable.get_next(), "2");
+        assert_eq!(variable.get_next(), "4");
+        assert_eq!(variable.get_next(), "0");
+        assert_eq!(variable.get_next(), "2");
+        assert_eq!(variable.get_next(), "4");
+        assert_eq!(variable.get_next(), "0");
+    }
+
+    #[test]
+    fn test_random_variable() {
+        let variable = RandomVariable::new(config::RandomProperties { min: 0, max: 10 });
+
+        let value = variable.get_next().parse::<i32>().unwrap();
+        assert!(value >= 0 && value <= 10);
+    }
+
+    #[test]
+    fn test_scenario_next_request() {
+        let var1 = Variable {
+            name: "VAR1".into(),
+            function: Box::new(IncrementalVariable::new(IncrementalProperties {
+                start: 0,
+                threshold: 10,
+                steps: 1,
+            })),
+        };
+        let var2 = Variable {
+            name: "VAR2".into(),
+            function: Box::new(IncrementalVariable::new(IncrementalProperties {
+                start: 100,
+                threshold: 1000,
+                steps: 20,
+            })),
+        };
+
+        let mut variables = HashMap::new();
+        variables.insert("VAR1".into(), var1);
+        variables.insert("VAR2".into(), var2);
+
+        let global = Global { variables };
+
+        let scenario = Scenario {
+            name: "test".into(),
+            global: &global,
+            uri: "/test".into(),
+            method: Method::GET,
+            body: Some(r#"{"test": "${VAR1}_${VAR2}"}"#.into()),
+        };
+
+        // First request
+        let request = scenario.next_request();
+        assert_eq!(request.uri, "/test");
+        assert_eq!(request.method, Method::GET);
+        assert_eq!(
+            request.body,
+            Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap())
+        );
+
+        // Second request
+        let request = scenario.next_request();
+        assert_eq!(request.uri, "/test");
+        assert_eq!(request.method, Method::GET);
+        assert_eq!(
+            request.body,
+            Some(serde_json::from_str(r#"{"test": "1_120"}"#).unwrap())
+        );
+
+        // Third request
+        let request = scenario.next_request();
+        assert_eq!(request.uri, "/test");
+        assert_eq!(request.method, Method::GET);
+        assert_eq!(
+            request.body,
+            Some(serde_json::from_str(r#"{"test": "2_140"}"#).unwrap())
+        );
     }
 }
