@@ -1,11 +1,109 @@
 use crate::config;
 use crate::config::VariableProperties;
 use crate::http_api::HttpRequest;
+use crate::http_api::HttpResponse;
 use http::Method;
+use http::StatusCode;
 use rand::Rng;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicI32;
+
+// pub struct Request {
+//     pub uri: String,
+//     pub method: Method,
+//     pub body: Option<String>,
+// }
+
+#[derive(Clone)]
+pub struct Response {
+    pub status: http::StatusCode,
+}
+
+#[derive(Clone)]
+pub struct Scenario<'a> {
+    pub name: String,
+    pub global: &'a Global,
+    pub uri: String,
+    pub method: Method,
+    // pub body: Option<serde_json::Value>,
+    pub body: Option<String>,
+    pub response: Response,
+}
+
+impl<'a> Scenario<'a> {
+    pub fn new(config: &config::Scenario, global: &'a Global) -> Self {
+        let body = match &config.request.body {
+            Some(body) => {
+                let source = body;
+                let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
+                for caps in variable_pattern.captures_iter(source) {
+                    let cap = caps[1].to_string();
+
+                    log::info!("Found variable: {}", cap);
+                    // let var = global.get_variable(&cap).unwrap();
+                    // variables.push(var);
+                }
+
+                Some(body.to_string())
+            }
+            None => None,
+        };
+
+        let response = Response {
+            status: StatusCode::from_u16(config.response.status).unwrap(),
+        };
+
+        Scenario {
+            name: config.name.clone(),
+            global,
+            uri: config.request.path.clone(),
+            method: config.request.method.parse().unwrap(),
+            body,
+            response,
+        }
+    }
+
+    pub fn next_request(&self) -> HttpRequest {
+        // TODO - Skip varaible replacement if no varaibles are detected in the body
+        // TODO - Handle URI
+        //
+        // Replace variables in the body
+        let body = match &self.body {
+            Some(body) => {
+                // This look really inefficient..
+                let mut result = body.clone();
+                for variable in self.global.variables.values() {
+                    let value = variable.function.get_next();
+                    result = result.replace(&format!("${{{}}}", variable.name), &value);
+                }
+                Some(serde_json::from_str(&result).unwrap())
+            }
+            None => None,
+        };
+        log::debug!("Body: {:?}", body);
+
+        let http_request = HttpRequest {
+            uri: self.uri.clone(),
+            method: self.method.clone(),
+            body,
+        };
+
+        http_request
+    }
+
+    pub fn assert_response(&self, response: &HttpResponse) -> bool {
+        if self.response.status != response.status {
+            log::error!(
+                "Expected status code: {:?}, got: {:?}",
+                self.response.status,
+                response.status
+            );
+            return false;
+        }
+        return true;
+    }
+}
 
 pub struct Global {
     variables: HashMap<String, Variable>,
@@ -28,73 +126,6 @@ impl Global {
             );
         }
         Global { variables }
-    }
-}
-
-#[derive(Clone)]
-pub struct Scenario<'a> {
-    pub name: String,
-    pub global: &'a Global,
-    pub uri: String,
-    pub method: Method,
-    // pub body: Option<serde_json::Value>,
-    pub body: Option<String>,
-}
-impl<'a> Scenario<'a> {
-    pub fn new(config: &config::Scenario, global: &'a Global) -> Self {
-        let body = match &config.request.body {
-            Some(body) => {
-                let source = body;
-                let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
-                for caps in variable_pattern.captures_iter(source) {
-                    let cap = caps[1].to_string();
-
-                    log::info!("Found variable: {}", cap);
-                    // let var = global.get_variable(&cap).unwrap();
-                    // variables.push(var);
-                }
-
-                Some(body.to_string())
-            }
-            None => None,
-        };
-
-        Scenario {
-            name: config.name.clone(),
-            global,
-            uri: config.request.path.clone(),
-            method: config.request.method.parse().unwrap(),
-            body,
-        }
-    }
-
-    pub fn next_request(&self) -> HttpRequest {
-        // TODO - Skip varaible replacement if no varaibles are detected in the body
-        // TODO - Add unit test
-        // TODO - Handle URI
-        //
-        // Replace variables in the body
-        let body = match &self.body {
-            Some(body) => {
-                // This look really inefficient..
-                let mut result = body.clone();
-                for variable in self.global.variables.values() {
-                    let value = variable.function.get_next();
-                    result = result.replace(&format!("${{{}}}", variable.name), &value);
-                }
-                Some(serde_json::from_str(&result).unwrap())
-            }
-            None => None,
-        };
-        log::info!("Body: {:?}", body);
-
-        let http_request = HttpRequest {
-            uri: self.uri.clone(),
-            method: self.method.clone(),
-            body,
-        };
-
-        http_request
     }
 }
 

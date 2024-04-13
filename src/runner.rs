@@ -125,10 +125,17 @@ impl<'a> Runner<'a> {
                 if let Some((ctx, response)) = resp_rx.recv().await {
                     log::debug!("Response Status: {:?}", response.status);
                     log::debug!("Response Body: {:?}", response.body);
-
                     api_stats.inc_retry(response.retry_count.into());
 
-                    if response.status != StatusCode::OK {
+                    // Get Scenario
+                    let scenario_id = ctx.scenario_id;
+                    let cur_scenario = if scenario_id == 0 {
+                        &self.first_scenario
+                    } else {
+                        &self.subsequent_scenarios[scenario_id - 1]
+                    };
+
+                    if !cur_scenario.assert_response(&response) {
                         // Error Stats
                         api_stats.inc_error();
                     } else {
@@ -136,24 +143,23 @@ impl<'a> Runner<'a> {
                         let round_trip_time = response.request_start.elapsed().as_micros() as u64;
                         api_stats.inc_rtt(round_trip_time);
                         api_stats.inc_success();
+                    }
 
-                        // Check if there are subsequent scenarios
-                        let scenario_id = ctx.scenario_id;
-                        if let Some(scenario) = self.subsequent_scenarios.get(scenario_id) {
-                            let http_request = scenario.next_request();
+                    // Check if there are subsequent scenarios
+                    if let Some(scenario) = self.subsequent_scenarios.get(scenario_id) {
+                        let http_request = scenario.next_request();
 
-                            eventloop_tx
-                                .send(Event::SendMessage(
-                                    EventContext {
-                                        scenario_id: scenario_id + 1,
-                                    },
-                                    http_request,
-                                    resp_tx.clone(),
-                                ))
-                                .await?;
-                        } else {
-                            //log::debug!("All scenarios completed
-                        }
+                        eventloop_tx
+                            .send(Event::SendMessage(
+                                EventContext {
+                                    scenario_id: scenario_id + 1,
+                                },
+                                http_request,
+                                resp_tx.clone(),
+                            ))
+                            .await?;
+                    } else {
+                        //log::debug!("All scenarios completed
                     }
                 }
             }
