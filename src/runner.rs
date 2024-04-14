@@ -142,6 +142,8 @@ impl<'a> Runner<'a> {
                         let round_trip_time = response.request_start.elapsed().as_micros() as u64;
                         api_stats.inc_rtt(round_trip_time);
                         api_stats.inc_success();
+
+                        cur_scenario.update_variables(&response);
                     }
 
                     // Check if there are subsequent scenarios

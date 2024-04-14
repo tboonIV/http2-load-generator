@@ -30,27 +30,27 @@ pub struct LocalVariable {
 #[derive(Clone)]
 pub struct Scenario<'a> {
     pub name: String,
-    pub global: &'a Global, // Maybe don't need this
+    // pub global: &'a Global,
     pub request: Request,
     pub response: Response,
-    pub variables: Vec<&'a Variable>,
-
-    pub define: Vec<LocalVariable>,
+    pub global_variables: Vec<&'a Variable>,
+    pub local_variables: Vec<LocalVariable>,
 }
 
 impl<'a> Scenario<'a> {
     pub fn new(config: &config::Scenario, global: &'a Global) -> Self {
-        let mut variables = vec![];
+        // Global Variable
+        let mut global_variables = vec![];
         let body = match &config.request.body {
             Some(body) => {
                 let source = body;
                 let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
                 for caps in variable_pattern.captures_iter(source) {
                     let cap = caps[1].to_string();
-                    log::info!("Found variable: {}", cap);
+                    log::debug!("Found variable: {}", cap);
 
                     let var = global.get_variable(&cap).unwrap();
-                    variables.push(var);
+                    global_variables.push(var);
                 }
 
                 Some(body.to_string())
@@ -58,23 +58,39 @@ impl<'a> Scenario<'a> {
             None => None,
         };
 
+        //Local Variable
+        let mut local_variables = vec![];
+        match &config.response.define {
+            Some(define) => {
+                for v in define {
+                    let local_variable = LocalVariable {
+                        name: v.name.clone(),
+                        from: v.from.clone(),
+                    };
+                    local_variables.push(local_variable);
+                }
+            }
+            None => {}
+        }
+
+        // Requets
         let request = Request {
             uri: config.request.path.clone(),
             method: config.request.method.parse().unwrap(),
             body,
         };
 
+        // Response
         let response = Response {
             status: StatusCode::from_u16(config.response.assert.status).unwrap(),
         };
 
         Scenario {
             name: config.name.clone(),
-            global,
             request,
             response,
-            variables,
-            define: vec![],
+            global_variables,
+            local_variables,
         }
     }
 
@@ -83,7 +99,7 @@ impl<'a> Scenario<'a> {
         let body = match &self.request.body {
             Some(body) => {
                 // This look really inefficient..
-                let variables = &self.variables;
+                let variables = &self.global_variables;
                 if variables.len() != 0 {
                     let mut result = body.clone();
                     for variable in variables {
@@ -122,15 +138,14 @@ impl<'a> Scenario<'a> {
         return true;
     }
 
-    pub fn define_variables(&self, response: &HttpResponse) {
+    pub fn update_variables(&self, response: &HttpResponse) {
         let _body = match &response.body {
             Some(body) => {
-                for v in &self.define {
+                for v in &self.local_variables {
                     // Simple regex for now
                     let (_, field_name) = v.from.split_at(2);
-                    println!("field_name is {}", field_name);
                     let value = body.get(field_name).unwrap().as_str().unwrap();
-                    println!("value is {}", value);
+                    log::debug!("field {}, value is {}", field_name, value);
                 }
 
                 Some(body)
@@ -275,16 +290,10 @@ mod tests {
             })),
         };
 
-        let mut variables = HashMap::new();
-        variables.insert("VAR1".into(), var1);
-        variables.insert("VAR2".into(), var2);
-        let global = Global { variables };
-
-        let variables = vec![&global.variables["VAR1"], &global.variables["VAR2"]];
+        let global_variables = vec![&var1, &var2];
 
         let scenario = Scenario {
             name: "Scenario_1".into(),
-            global: &global,
             request: Request {
                 uri: "/endpoint".into(),
                 method: Method::GET,
@@ -293,8 +302,8 @@ mod tests {
             response: Response {
                 status: StatusCode::OK,
             },
-            variables,
-            define: vec![],
+            global_variables,
+            local_variables: vec![],
         };
 
         // First request
@@ -329,9 +338,6 @@ mod tests {
     fn test_scenario_assert_response() {
         let scenario = Scenario {
             name: "Scenario_1".into(),
-            global: &Global {
-                variables: HashMap::new(),
-            },
             request: Request {
                 uri: "/endpoint".into(),
                 method: Method::GET,
@@ -340,8 +346,8 @@ mod tests {
             response: Response {
                 status: StatusCode::OK,
             },
-            variables: vec![],
-            define: vec![],
+            global_variables: vec![],
+            local_variables: vec![],
         };
 
         let response1 = HttpResponse {
@@ -363,17 +369,14 @@ mod tests {
     }
 
     #[test]
-    fn test_scenario_define_variables() {
-        let define = vec![LocalVariable {
+    fn test_scenario_update_variables() {
+        let local_variables = vec![LocalVariable {
             name: "ObjectId".into(),
             from: "$.ObjectId".into(),
         }];
 
         let scenario = Scenario {
             name: "Scenario_1".into(),
-            global: &Global {
-                variables: HashMap::new(),
-            },
             request: Request {
                 uri: "/endpoint".into(),
                 method: Method::GET,
@@ -382,11 +385,11 @@ mod tests {
             response: Response {
                 status: StatusCode::OK,
             },
-            variables: vec![],
-            define,
+            global_variables: vec![],
+            local_variables,
         };
 
-        scenario.define_variables(&HttpResponse {
+        scenario.update_variables(&HttpResponse {
             status: StatusCode::OK,
             body: Some(serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap()),
             request_start: std::time::Instant::now(),

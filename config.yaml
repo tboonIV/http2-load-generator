@@ -1,8 +1,8 @@
-log_level: "Info"
-parallel: 4
+log_level: "Debug"
+parallel: 1
 runner:
-  target_rps: 8000
-  duration: "30s"
+  target_rps: 1
+  duration: "3s"
   batch_size: "Auto"
   # batch_size: 2
   # auto_throttle: true
@@ -39,7 +39,7 @@ runner:
           status: 200
         define:
           - name: ExternalId
-            from: body.ExternalId
+            from: $.ObjectId
     # - name: querySubscriber
     #   method: GET
     #   path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
