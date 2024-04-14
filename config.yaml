@@ -1,10 +1,10 @@
-log_level: "Debug"
-parallel: 1
+log_level: "Info"
+parallel: 4
 runner:
-  target_rps: 2
-  duration: "3s"
-  # batch_size: "Auto"
-  batch_size: 2
+  target_rps: 8000
+  duration: "30s"
+  batch_size: "Auto"
+  # batch_size: 2
   # auto_throttle: true
   base_url: "http://localhost:8080"
   global:
