@@ -27,6 +27,12 @@ pub async fn send_request(
     client: &mut SendRequest<Bytes>,
     http_request: HttpRequest,
 ) -> Result<JoinHandle<HttpResponse>, Box<dyn Error>> {
+    log::debug!(
+        "Sending request {} {}",
+        http_request.method,
+        http_request.uri
+    );
+
     let request = Request::builder()
         .uri(http_request.uri)
         .method(http_request.method)

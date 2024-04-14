@@ -47,7 +47,7 @@ impl<'a> Scenario<'a> {
                 let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
                 for caps in variable_pattern.captures_iter(source) {
                     let cap = caps[1].to_string();
-                    log::debug!("Found variable: {}", cap);
+                    log::debug!("Found global variable: {}", cap);
 
                     let var = global.get_variable(&cap).unwrap();
                     global_variables.push(var);
@@ -100,25 +100,41 @@ impl<'a> Scenario<'a> {
             Some(body) => {
                 // This look really inefficient..
                 let variables = &self.global_variables;
-                if variables.len() != 0 {
-                    let mut result = body.clone();
+                let body = if variables.len() != 0 {
+                    let mut body = body.clone();
                     for variable in variables {
                         let value = variable.function.get_next();
-                        result = result.replace(&format!("${{{}}}", variable.name), &value);
+                        body = body.replace(&format!("${{{}}}", variable.name), &value);
                     }
-                    Some(serde_json::from_str(&result).unwrap())
+                    body
                 } else {
-                    Some(serde_json::from_str(&body).unwrap())
-                }
+                    body.into()
+                };
+                Some(serde_json::from_str(&body).unwrap())
             }
             None => None,
         };
         log::debug!("Body: {:?}", body);
 
-        // TODO - Handle URI too
+        // TODO implement this
+        // Replace variables in the URI
+        // let uri = {
+        //     let variables = &self.global_variables;
+        //     let mut uri = self.request.uri.clone();
+        //     for variable in variables {
+        //         let value = variable.function.get_next();
+        //         uri = uri.replace(&format!("${{{}}}", variable.name), &value);
+        //     }
+        //     uri
+        // };
+        let uri = {
+            let mut uri = self.request.uri.clone();
+            uri = uri.replace(&format!("${{{}}}", "ExternalId"), "0-1-2-3");
+            uri
+        };
 
         let http_request = HttpRequest {
-            uri: self.request.uri.clone(),
+            uri,
             method: self.request.method.clone(),
             body,
         };
@@ -145,7 +161,11 @@ impl<'a> Scenario<'a> {
                     // Simple regex for now
                     let (_, field_name) = v.from.split_at(2);
                     let value = body.get(field_name).unwrap().as_str().unwrap();
-                    log::debug!("field {}, value is {}", field_name, value);
+                    log::debug!(
+                        "Set local var from json field {}, value is {}",
+                        field_name,
+                        value
+                    );
                 }
 
                 Some(body)
