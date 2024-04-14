@@ -5,7 +5,6 @@ use h2::SendStream;
 use http::Method;
 use http::Request;
 use http::StatusCode;
-use serde_json::json;
 use std::error::Error;
 use std::time::Instant;
 use tokio::task::JoinHandle;
@@ -19,7 +18,7 @@ pub struct HttpRequest {
 
 pub struct HttpResponse {
     pub status: StatusCode,
-    pub body: serde_json::Value,
+    pub body: Option<serde_json::Value>,
     pub request_start: Instant,
     pub retry_count: u8,
 }
@@ -69,7 +68,7 @@ pub async fn send_request(
                 // TODO need better error handling
                 HttpResponse {
                     status: StatusCode::INTERNAL_SERVER_ERROR,
-                    body: json!({}),
+                    body: None,
                     request_start,
                     retry_count,
                 }

@@ -22,12 +22,20 @@ pub struct Response {
 }
 
 #[derive(Clone)]
+pub struct LocalVariable {
+    pub name: String,
+    pub from: String,
+}
+
+#[derive(Clone)]
 pub struct Scenario<'a> {
     pub name: String,
     pub global: &'a Global, // Maybe don't need this
     pub request: Request,
     pub response: Response,
     pub variables: Vec<&'a Variable>,
+
+    pub define: Vec<LocalVariable>,
 }
 
 impl<'a> Scenario<'a> {
@@ -66,6 +74,7 @@ impl<'a> Scenario<'a> {
             request,
             response,
             variables,
+            define: vec![],
         }
     }
 
@@ -111,6 +120,23 @@ impl<'a> Scenario<'a> {
             return false;
         }
         return true;
+    }
+
+    pub fn define_variables(&self, response: &HttpResponse) {
+        let _body = match &response.body {
+            Some(body) => {
+                for v in &self.define {
+                    // Simple regex for now
+                    let (_, field_name) = v.from.split_at(2);
+                    println!("field_name is {}", field_name);
+                    let value = body.get(field_name).unwrap().as_str().unwrap();
+                    println!("value is {}", value);
+                }
+
+                Some(body)
+            }
+            None => None,
+        };
     }
 }
 
@@ -257,10 +283,10 @@ mod tests {
         let variables = vec![&global.variables["VAR1"], &global.variables["VAR2"]];
 
         let scenario = Scenario {
-            name: "test".into(),
+            name: "Scenario_1".into(),
             global: &global,
             request: Request {
-                uri: "/test".into(),
+                uri: "/endpoint".into(),
                 method: Method::GET,
                 body: Some(r#"{"test": "${VAR1}_${VAR2}"}"#.into()),
             },
@@ -268,11 +294,12 @@ mod tests {
                 status: StatusCode::OK,
             },
             variables,
+            define: vec![],
         };
 
         // First request
         let request = scenario.next_request();
-        assert_eq!(request.uri, "/test");
+        assert_eq!(request.uri, "/endpoint");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
@@ -281,7 +308,7 @@ mod tests {
 
         // Second request
         let request = scenario.next_request();
-        assert_eq!(request.uri, "/test");
+        assert_eq!(request.uri, "/endpoint");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
@@ -290,11 +317,80 @@ mod tests {
 
         // Third request
         let request = scenario.next_request();
-        assert_eq!(request.uri, "/test");
+        assert_eq!(request.uri, "/endpoint");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
             Some(serde_json::from_str(r#"{"test": "2_140"}"#).unwrap())
         );
+    }
+
+    #[test]
+    fn test_scenario_assert_response() {
+        let scenario = Scenario {
+            name: "Scenario_1".into(),
+            global: &Global {
+                variables: HashMap::new(),
+            },
+            request: Request {
+                uri: "/endpoint".into(),
+                method: Method::GET,
+                body: None,
+            },
+            response: Response {
+                status: StatusCode::OK,
+            },
+            variables: vec![],
+            define: vec![],
+        };
+
+        let response1 = HttpResponse {
+            status: StatusCode::OK,
+            body: None,
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        let response2 = HttpResponse {
+            status: StatusCode::NOT_FOUND,
+            body: None,
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        assert_eq!(true, scenario.assert_response(&response1));
+        assert_eq!(false, scenario.assert_response(&response2));
+    }
+
+    #[test]
+    fn test_scenario_define_variables() {
+        let define = vec![LocalVariable {
+            name: "ObjectId".into(),
+            from: "$.ObjectId".into(),
+        }];
+
+        let scenario = Scenario {
+            name: "Scenario_1".into(),
+            global: &Global {
+                variables: HashMap::new(),
+            },
+            request: Request {
+                uri: "/endpoint".into(),
+                method: Method::GET,
+                body: None,
+            },
+            response: Response {
+                status: StatusCode::OK,
+            },
+            variables: vec![],
+            define,
+        };
+
+        scenario.define_variables(&HttpResponse {
+            status: StatusCode::OK,
+            body: Some(serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap()),
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        });
     }
 }
