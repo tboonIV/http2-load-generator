@@ -1,5 +1,4 @@
 use crate::config;
-use crate::config::VariableProperties;
 use crate::http_api::HttpRequest;
 use crate::http_api::HttpResponse;
 use http::Method;
@@ -25,13 +24,15 @@ pub struct Response {
 #[derive(Clone)]
 pub struct Scenario<'a> {
     pub name: String,
-    pub global: &'a Global,
+    pub global: &'a Global, // Maybe don't need this
     pub request: Request,
     pub response: Response,
+    pub variables: Vec<&'a Variable>,
 }
 
 impl<'a> Scenario<'a> {
     pub fn new(config: &config::Scenario, global: &'a Global) -> Self {
+        let mut variables = vec![];
         let body = match &config.request.body {
             Some(body) => {
                 let source = body;
@@ -39,9 +40,9 @@ impl<'a> Scenario<'a> {
                 for caps in variable_pattern.captures_iter(source) {
                     let cap = caps[1].to_string();
                     log::info!("Found variable: {}", cap);
-                    //
-                    // let var = global.get_variable(&cap).unwrap();
-                    // variables.push(var);
+
+                    let var = global.get_variable(&cap).unwrap();
+                    variables.push(var);
                 }
 
                 Some(body.to_string())
@@ -56,7 +57,7 @@ impl<'a> Scenario<'a> {
         };
 
         let response = Response {
-            status: StatusCode::from_u16(config.response.status).unwrap(),
+            status: StatusCode::from_u16(config.response.assert.status).unwrap(),
         };
 
         Scenario {
@@ -64,27 +65,32 @@ impl<'a> Scenario<'a> {
             global,
             request,
             response,
+            variables,
         }
     }
 
     pub fn next_request(&self) -> HttpRequest {
-        // TODO - Skip varaible replacement if no varaibles are detected in the body
-        // TODO - Handle URI
-        //
         // Replace variables in the body
         let body = match &self.request.body {
             Some(body) => {
                 // This look really inefficient..
-                let mut result = body.clone();
-                for variable in self.global.variables.values() {
-                    let value = variable.function.get_next();
-                    result = result.replace(&format!("${{{}}}", variable.name), &value);
+                let variables = &self.variables;
+                if variables.len() != 0 {
+                    let mut result = body.clone();
+                    for variable in variables {
+                        let value = variable.function.get_next();
+                        result = result.replace(&format!("${{{}}}", variable.name), &value);
+                    }
+                    Some(serde_json::from_str(&result).unwrap())
+                } else {
+                    Some(serde_json::from_str(&body).unwrap())
                 }
-                Some(serde_json::from_str(&result).unwrap())
             }
             None => None,
         };
         log::debug!("Body: {:?}", body);
+
+        // TODO - Handle URI too
 
         let http_request = HttpRequest {
             uri: self.request.uri.clone(),
@@ -113,12 +119,12 @@ pub struct Global {
 }
 
 impl Global {
-    pub fn new(configs: Vec<config::Variable>) -> Self {
+    pub fn new(configs: config::Global) -> Self {
         let mut variables = HashMap::new();
-        for variable in configs {
-            let v: Box<dyn Function> = match variable.properties {
-                VariableProperties::Incremental(prop) => Box::new(IncrementalVariable::new(prop)),
-                VariableProperties::Random(prop) => Box::new(RandomVariable::new(prop)),
+        for variable in configs.variables {
+            let v: Box<dyn Function> = match variable.function {
+                config::Function::Incremental(prop) => Box::new(IncrementalVariable::new(prop)),
+                config::Function::Random(prop) => Box::new(RandomVariable::new(prop)),
             };
             variables.insert(
                 variable.name.clone(),
@@ -129,6 +135,10 @@ impl Global {
             );
         }
         Global { variables }
+    }
+
+    pub fn get_variable(&self, name: &str) -> Option<&Variable> {
+        self.variables.get(name)
     }
 }
 
@@ -149,7 +159,7 @@ pub struct IncrementalVariable {
 }
 
 impl IncrementalVariable {
-    pub fn new(properties: config::IncrementalProperties) -> IncrementalVariable {
+    pub fn new(properties: config::IncrementalFunction) -> IncrementalVariable {
         IncrementalVariable {
             value: AtomicI32::new(properties.start),
             threshold: properties.threshold,
@@ -174,7 +184,7 @@ pub struct RandomVariable {
 }
 
 impl RandomVariable {
-    pub fn new(properties: config::RandomProperties) -> RandomVariable {
+    pub fn new(properties: config::RandomFunction) -> RandomVariable {
         RandomVariable {
             min: properties.min,
             max: properties.max,
@@ -193,11 +203,11 @@ impl Function for RandomVariable {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::IncrementalProperties;
+    use crate::config::IncrementalFunction;
 
     #[test]
     fn test_incremental_variable() {
-        let variable = IncrementalVariable::new(IncrementalProperties {
+        let variable = IncrementalVariable::new(IncrementalFunction {
             start: 0,
             threshold: 5,
             steps: 2,
@@ -214,7 +224,7 @@ mod tests {
 
     #[test]
     fn test_random_variable() {
-        let variable = RandomVariable::new(config::RandomProperties { min: 0, max: 10 });
+        let variable = RandomVariable::new(config::RandomFunction { min: 0, max: 10 });
 
         let value = variable.get_next().parse::<i32>().unwrap();
         assert!(value >= 0 && value <= 10);
@@ -224,7 +234,7 @@ mod tests {
     fn test_scenario_next_request() {
         let var1 = Variable {
             name: "VAR1".into(),
-            function: Box::new(IncrementalVariable::new(IncrementalProperties {
+            function: Box::new(IncrementalVariable::new(IncrementalFunction {
                 start: 0,
                 threshold: 10,
                 steps: 1,
@@ -232,7 +242,7 @@ mod tests {
         };
         let var2 = Variable {
             name: "VAR2".into(),
-            function: Box::new(IncrementalVariable::new(IncrementalProperties {
+            function: Box::new(IncrementalVariable::new(IncrementalFunction {
                 start: 100,
                 threshold: 1000,
                 steps: 20,
@@ -242,8 +252,9 @@ mod tests {
         let mut variables = HashMap::new();
         variables.insert("VAR1".into(), var1);
         variables.insert("VAR2".into(), var2);
-
         let global = Global { variables };
+
+        let variables = vec![&global.variables["VAR1"], &global.variables["VAR2"]];
 
         let scenario = Scenario {
             name: "test".into(),
@@ -256,6 +267,7 @@ mod tests {
             response: Response {
                 status: StatusCode::OK,
             },
+            variables,
         };
 
         // First request

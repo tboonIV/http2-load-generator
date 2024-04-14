@@ -7,18 +7,19 @@ runner:
   batch_size: 2
   # auto_throttle: true
   base_url: "http://localhost:8080"
-  variables:
-    - name: COUNTER
-      properties:
-        type: Incremental
-        start: 0
-        threshold: 100000
-        steps: 1
-    - name: RANDOM
-      properties:
-        type: Random
-        min: 0
-        max: 100000
+  global:
+    variables:
+      - name: COUNTER
+        function:
+          type: Incremental
+          start: 0
+          threshold: 100000
+          steps: 1
+      - name: RANDOM
+        function:
+          type: Random
+          min: 0
+          max: 100000
   # delay_between_scenario: "500ms"
   scenarios:
     - name: createSubscriber
@@ -34,7 +35,11 @@ runner:
             "ContactEmail": "james.bond@email.com"
           }
       response:
-        status: 200
+        assert:
+          status: 200
+        define:
+          - name: ExternalId
+            from: body.ExternalId
     # - name: querySubscriber
     #   method: GET
     #   path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"

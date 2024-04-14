@@ -43,7 +43,7 @@ pub struct RunnerConfig {
     pub batch_size: BatchSize,
     // pub auto_throttle: bool,
     pub base_url: String,
-    pub variables: Vec<Variable>,
+    pub global: Global,
     // #[serde(deserialize_with = "humantime_duration_deserializer")]
     // pub delay_between_scenario: Duration,
     pub scenarios: Vec<Scenario>,
@@ -57,29 +57,34 @@ pub enum BatchSize {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct Global {
+    pub variables: Vec<Variable>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct Variable {
     pub name: String,
-    pub properties: VariableProperties,
+    pub function: Function,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(tag = "type")]
-pub enum VariableProperties {
-    Incremental(IncrementalProperties),
-    Random(RandomProperties),
+pub enum Function {
+    Incremental(IncrementalFunction),
+    Random(RandomFunction),
     // ThreadId,
     // RunnerId,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct IncrementalProperties {
+pub struct IncrementalFunction {
     pub start: i32,
     pub threshold: i32,
     pub steps: i32,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct RandomProperties {
+pub struct RandomFunction {
     pub min: i32,
     pub max: i32,
 }
@@ -100,7 +105,19 @@ pub struct Request {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Response {
+    pub assert: ResponseAssert,
+    pub define: Option<Vec<ResponseDefine>>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ResponseAssert {
     pub status: u16,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ResponseDefine {
+    pub name: String,
+    pub from: String,
 }
 
 pub fn read_yaml_file(path: &str) -> Result<Config, Box<dyn Error>> {
@@ -135,20 +152,21 @@ mod tests {
           batch_size: 5
           # auto_throttle: true
           base_url: "http://localhost:8080/"
-          variables:
-            - name: COUNTER
-              type: Incremental
-              properties:
+          global:
+            variables:
+              - name: COUNTER
                 type: Incremental
-                start: 0
-                threshold: 100
-                steps: 1
-            - name: RANDOM
-              type: Random
-              properties:
+                function:
+                  type: Incremental
+                  start: 0
+                  threshold: 100
+                  steps: 1
+              - name: RANDOM
                 type: Random
-                min: 0
-                max: 100
+                function:
+                  type: Random
+                  min: 0
+                  max: 100
           # delay_between_scenario: 500ms
           scenarios:
             - name: createSubscriber
@@ -164,13 +182,15 @@ mod tests {
                     "ContactEmail": "james.bond@email.com"
                   }
               response:
-                status: 200
+                assert:
+                  status: 200
             - name: querySubscriber
               request:
                 method: GET
                 path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
               response:
-                status: 200
+                assert:
+                  status: 200
     "#;
         let config: Config = serde_yaml::from_str(yaml_str).unwrap();
 
@@ -180,20 +200,20 @@ mod tests {
         assert_eq!(config.runner.duration, Duration::from_secs(10));
         assert_eq!(config.runner.batch_size, BatchSize::Fixed(5));
         assert_eq!(config.runner.base_url, "http://localhost:8080/".to_string());
-        assert_eq!(config.runner.variables.len(), 2);
-        assert_eq!(config.runner.variables[0].name, "COUNTER");
+        assert_eq!(config.runner.global.variables.len(), 2);
+        assert_eq!(config.runner.global.variables[0].name, "COUNTER");
         assert_eq!(
-            config.runner.variables[0].properties,
-            VariableProperties::Incremental(IncrementalProperties {
+            config.runner.global.variables[0].function,
+            Function::Incremental(IncrementalFunction {
                 start: 0,
                 threshold: 100,
                 steps: 1,
             })
         );
-        assert_eq!(config.runner.variables[1].name, "RANDOM");
+        assert_eq!(config.runner.global.variables[1].name, "RANDOM");
         assert_eq!(
-            config.runner.variables[1].properties,
-            VariableProperties::Random(RandomProperties { min: 0, max: 100 })
+            config.runner.global.variables[1].function,
+            Function::Random(RandomFunction { min: 0, max: 100 })
         );
         assert_eq!(config.runner.scenarios.len(), 2);
         assert_eq!(config.runner.scenarios[0].name, "createSubscriber");
@@ -216,7 +236,7 @@ mod tests {
                 .to_string()
             )
         );
-        assert_eq!(config.runner.scenarios[0].response.status, 200);
+        assert_eq!(config.runner.scenarios[0].response.assert.status, 200);
         assert_eq!(config.runner.scenarios[1].name, "querySubscriber");
         assert_eq!(config.runner.scenarios[1].request.method, "GET");
         assert_eq!(
@@ -224,6 +244,6 @@ mod tests {
             "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
         );
         assert_eq!(config.runner.scenarios[1].request.body, None);
-        assert_eq!(config.runner.scenarios[1].response.status, 200);
+        assert_eq!(config.runner.scenarios[1].response.assert.status, 200);
     }
 }
