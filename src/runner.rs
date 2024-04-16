@@ -110,7 +110,7 @@ impl<'a> Runner<'a> {
 
             for _ in 0..param.batch_size {
                 let scenario = self.first_scenario.clone();
-                let http_request = scenario.next_request();
+                let http_request = scenario.next_request(vec![]);
 
                 let ctx = EventContext { scenario_id: 0 };
                 eventloop_tx
@@ -134,6 +134,7 @@ impl<'a> Runner<'a> {
                         &self.subsequent_scenarios[scenario_id - 1]
                     };
 
+                    let mut new_variable_values = vec![];
                     if !cur_scenario.assert_response(&response) {
                         // Error Stats
                         api_stats.inc_error();
@@ -143,12 +144,13 @@ impl<'a> Runner<'a> {
                         api_stats.inc_rtt(round_trip_time);
                         api_stats.inc_success();
 
-                        cur_scenario.update_variables(&response);
+                        // Get new variables from response to pass to next scenario
+                        new_variable_values = cur_scenario.update_variables(&response);
                     }
 
                     // Check if there are subsequent scenarios
                     if let Some(scenario) = self.subsequent_scenarios.get(scenario_id) {
-                        let http_request = scenario.next_request();
+                        let http_request = scenario.next_request(new_variable_values);
 
                         eventloop_tx
                             .send(Event::SendMessage(

@@ -28,6 +28,12 @@ pub struct LocalVariable {
 }
 
 #[derive(Clone)]
+pub struct LocalVariableValue {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Clone)]
 pub struct Scenario<'a> {
     pub name: String,
     // pub global: &'a Global,
@@ -94,7 +100,7 @@ impl<'a> Scenario<'a> {
         }
     }
 
-    pub fn next_request(&self) -> HttpRequest {
+    pub fn next_request(&self, new_variables: Vec<LocalVariableValue>) -> HttpRequest {
         // Replace variables in the body
         let body = match &self.request.body {
             Some(body) => {
@@ -104,6 +110,10 @@ impl<'a> Scenario<'a> {
                     let mut body = body.clone();
                     for variable in variables {
                         let value = variable.function.get_next();
+                        body = body.replace(&format!("${{{}}}", variable.name), &value);
+                    }
+                    for variable in &new_variables {
+                        let value = &variable.value;
                         body = body.replace(&format!("${{{}}}", variable.name), &value);
                     }
                     body
@@ -116,20 +126,13 @@ impl<'a> Scenario<'a> {
         };
         log::debug!("Body: {:?}", body);
 
-        // TODO implement this
-        // Replace variables in the URI
-        // let uri = {
-        //     let variables = &self.global_variables;
-        //     let mut uri = self.request.uri.clone();
-        //     for variable in variables {
-        //         let value = variable.function.get_next();
-        //         uri = uri.replace(&format!("${{{}}}", variable.name), &value);
-        //     }
-        //     uri
-        // };
         let uri = {
             let mut uri = self.request.uri.clone();
-            uri = uri.replace(&format!("${{{}}}", "ExternalId"), "0-1-2-3");
+            for variable in new_variables {
+                // TODO replace regex with something better
+                // TODO throw error if variable not found
+                uri = uri.replace(&format!("${{{}}}", variable.name), &variable.value);
+            }
             uri
         };
 
@@ -154,11 +157,14 @@ impl<'a> Scenario<'a> {
         return true;
     }
 
-    pub fn update_variables(&self, response: &HttpResponse) {
+    pub fn update_variables(&self, response: &HttpResponse) -> Vec<LocalVariableValue> {
+        let mut values = vec![];
+
         let _body = match &response.body {
             Some(body) => {
                 for v in &self.local_variables {
                     // Simple regex for now
+                    // TODO: Implement a proper JSON path parser
                     let (_, field_name) = v.from.split_at(2);
                     let value = body.get(field_name).unwrap().as_str().unwrap();
                     log::debug!(
@@ -166,12 +172,19 @@ impl<'a> Scenario<'a> {
                         field_name,
                         value
                     );
+                    let value = LocalVariableValue {
+                        name: v.name.clone(),
+                        value: value.to_string(),
+                    };
+                    values.push(value);
                 }
 
                 Some(body)
             }
             None => None,
         };
+
+        values
     }
 }
 
@@ -327,7 +340,7 @@ mod tests {
         };
 
         // First request
-        let request = scenario.next_request();
+        let request = scenario.next_request(vec![]);
         assert_eq!(request.uri, "/endpoint");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
@@ -336,7 +349,7 @@ mod tests {
         );
 
         // Second request
-        let request = scenario.next_request();
+        let request = scenario.next_request(vec![]);
         assert_eq!(request.uri, "/endpoint");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
@@ -345,7 +358,7 @@ mod tests {
         );
 
         // Third request
-        let request = scenario.next_request();
+        let request = scenario.next_request(vec![]);
         assert_eq!(request.uri, "/endpoint");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
