@@ -1,8 +1,8 @@
-log_level: "Debug"
-parallel: 1
+log_level: "Info"
+parallel: 4
 runner:
-  target_rps: 2
-  duration: "3s"
+  target_rps: 8000
+  duration: "30s"
   batch_size: "Auto"
   # batch_size: 2
   # auto_throttle: true
@@ -43,7 +43,6 @@ runner:
     - name: querySubscriber
       request:
         method: GET
-        # Local Variable doesn't work yet
         path: "/rsgateway/data/json/subscriber/query/ExternalId/${ExternalId}"
       response:
         assert:

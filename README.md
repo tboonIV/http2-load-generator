@@ -7,12 +7,14 @@ This load generator is built to address these problems. It is optimized for test
 
 ## Usage:
 
+Example to establish 4 HTTP/2 connections, each with 8000 TPS for a duration of 300 seconds.
+
 ```yaml
 log_level: "Info"
 parallel: 4
 runner:
   target_rps: 8000
-  duration: "30s"
+  duration: "300s"
   batch_size: "Auto"
   base_url: "http://localhost:8080"
   global:

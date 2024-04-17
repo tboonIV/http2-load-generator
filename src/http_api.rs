@@ -42,6 +42,7 @@ pub async fn send_request(
         send_request_with_retries(client, &request).await?;
 
     let request_body = serde_json::to_string(&http_request.body)?;
+    log::debug!("Request body: {}", request_body);
 
     stream.send_data(request_body.into(), true)?;
     // log::debug!("Request sent");
