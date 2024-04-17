@@ -22,7 +22,7 @@ pub struct Response {
 }
 
 #[derive(Clone)]
-pub struct LocalVariable {
+pub struct LocalVariableDefine {
     pub name: String,
     pub from: String,
 }
@@ -40,7 +40,7 @@ pub struct Scenario<'a> {
     pub request: Request,
     pub response: Response,
     pub global_variables: Vec<&'a Variable>,
-    pub local_variables: Vec<LocalVariable>,
+    pub local_variables: Vec<LocalVariableDefine>,
 }
 
 impl<'a> Scenario<'a> {
@@ -69,7 +69,7 @@ impl<'a> Scenario<'a> {
         match &config.response.define {
             Some(define) => {
                 for v in define {
-                    let local_variable = LocalVariable {
+                    let local_variable = LocalVariableDefine {
                         name: v.name.clone(),
                         from: v.from.clone(),
                     };
@@ -163,13 +163,12 @@ impl<'a> Scenario<'a> {
         let _body = match &response.body {
             Some(body) => {
                 for v in &self.local_variables {
-                    // Simple regex for now
-                    // TODO: Implement a proper JSON path parser
-                    let (_, field_name) = v.from.split_at(2);
-                    let value = body.get(field_name).unwrap().as_str().unwrap();
+                    let value = jsonpath_lib::select(&body, &v.from).unwrap();
+                    let value = value.get(0).unwrap().as_str().unwrap();
                     log::debug!(
-                        "Set local var from json field {}, value is {}",
-                        field_name,
+                        "Set local var from json field: '{}', name: '{}' value: '{}'",
+                        v.from,
+                        v.name,
                         value
                     );
                     let value = LocalVariableValue {
@@ -403,7 +402,7 @@ mod tests {
 
     #[test]
     fn test_scenario_update_variables() {
-        let local_variables = vec![LocalVariable {
+        let local_variables = vec![LocalVariableDefine {
             name: "ObjectId".into(),
             from: "$.ObjectId".into(),
         }];

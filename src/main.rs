@@ -21,6 +21,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
     // Configure Logging
     env_logger::Builder::new()
+        .filter_module("jsonpath_lib", log::LevelFilter::Error)
         .format(|buf, record| {
             let now = Local::now();
             let thread = thread::current();

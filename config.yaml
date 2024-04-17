@@ -1,8 +1,8 @@
-log_level: "Info"
-parallel: 4
+log_level: "Debug"
+parallel: 1
 runner:
-  target_rps: 8000
-  duration: "30s"
+  target_rps: 2
+  duration: "3s"
   batch_size: "Auto"
   # batch_size: 2
   # auto_throttle: true
