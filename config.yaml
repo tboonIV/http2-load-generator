@@ -1,12 +1,12 @@
 log_level: "Debug"
 parallel: 1
 runner:
-  target_rps: 2
+  target_rps: 1
   duration: "3s"
   batch_size: "Auto"
   # batch_size: 2
   # auto_throttle: true
-  base_url: "http://localhost:8080"
+  base_url: "http://localhost:8081"
   global:
     variables:
       - name: COUNTER
@@ -22,28 +22,46 @@ runner:
           max: 100000
   # delay_between_scenario: "500ms"
   scenarios:
-    - name: createSubscriber
+    - name: chargingDataCreate
       request:
         method: POST
-        path: "/rsgateway/data/json/subscriber"
+        path: "/nchf-convergedcharging/v2/chargingdata"
+        headers: 
+        - content-type: "application/json"
         body: |
           {
-            "$": "MtxRequestSubscriberCreate",
-            "Name": "James Bond",
-            "FirstName": "James_${COUNTER}_${RANDOM}",
-            "LastName": "Bond",
-            "ContactEmail": "james.bond@email.com"
+            "notifyUri": "http://chf/callback/notify",
+            "oneTimeEvent": true,
+            "invocationSequenceNumber": ${COUNTER},
+            "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "nfConsumerIdentification": {
+              "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
+              "nFIPv4Address": "198.51.100.1",
+              "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
+              "nodeFunctionality": "SMF",
+              "nFPLMNID": {
+                "mnc": "123",
+                "mcc": "456"
+              }
+            }
           }
       response:
         assert:
-          status: 200
-        define:
-          - name: ExternalId
-            from: $.ObjectId
-    - name: querySubscriber
-      request:
-        method: GET
-        path: "/rsgateway/data/json/subscriber/query/ExternalId/${ExternalId}"
-      response:
-        assert:
-          status: 200
+          status: 201
+        # define:
+        #   - name: chargingDataRef
+        #     from: header.Location
+    # - name: chargingDataUpdate
+    #   request:
+    #     method: POST
+    #     path: "/nchf-convergedcharging/v2/chargingdata/${chargingDataRef}/update"
+    #   response:
+    #     assert:
+    #       status: 200
+    # - name: chargingDataRelease
+    #   request:
+    #     method: POST
+    #     path: "/nchf-convergedcharging/v2/chargingdata/${chargingDataRef}/release"
+    #   response:
+    #     assert:
+    #       status: 204

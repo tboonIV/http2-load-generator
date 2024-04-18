@@ -5,6 +5,7 @@ use h2::SendStream;
 use http::Method;
 use http::Request;
 use http::StatusCode;
+use std::collections::HashMap;
 use std::error::Error;
 use std::time::Instant;
 use tokio::task::JoinHandle;
@@ -13,6 +14,7 @@ use tokio::time::Duration;
 pub struct HttpRequest {
     pub uri: String,
     pub method: Method,
+    pub headers: Option<Vec<HashMap<String, String>>>,
     pub body: Option<serde_json::Value>,
 }
 
@@ -33,10 +35,17 @@ pub async fn send_request(
         http_request.uri
     );
 
-    let request = Request::builder()
+    let mut request_builder = Request::builder()
         .uri(http_request.uri)
-        .method(http_request.method)
-        .body(())?;
+        .method(http_request.method);
+    if let Some(headers) = http_request.headers {
+        for header in headers {
+            for (k, v) in header {
+                request_builder = request_builder.header(k, v);
+            }
+        }
+    }
+    let request = request_builder.body(())?;
 
     let (response, mut stream, retry_count, request_start) =
         send_request_with_retries(client, &request).await?;

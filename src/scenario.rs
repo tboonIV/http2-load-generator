@@ -12,6 +12,7 @@ use std::sync::atomic::AtomicI32;
 pub struct Request {
     pub uri: String,
     pub method: Method,
+    pub headers: Option<Vec<HashMap<String, String>>>,
     pub body: Option<String>,
     // pub body: Option<serde_json::Value>,
 }
@@ -83,6 +84,7 @@ impl<'a> Scenario<'a> {
         let request = Request {
             uri: config.request.path.clone(),
             method: config.request.method.parse().unwrap(),
+            headers: config.request.headers.clone(),
             body,
         };
 
@@ -139,6 +141,7 @@ impl<'a> Scenario<'a> {
         let http_request = HttpRequest {
             uri,
             method: self.request.method.clone(),
+            headers: self.request.headers.clone(),
             body,
         };
 

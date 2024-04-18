@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde_yaml::Value;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
@@ -100,6 +101,7 @@ pub struct Scenario {
 pub struct Request {
     pub method: String,
     pub path: String,
+    pub headers: Option<Vec<HashMap<String, String>>>,
     pub body: Option<String>,
 }
 
@@ -173,6 +175,8 @@ mod tests {
               request:
                 method: POST
                 path: "/rsgateway/data/json/subscriber"
+                headers:
+                - content-type: "application/json"
                 body: |
                   {
                     "$": "MtxRequestSubscriberCreate",
@@ -223,6 +227,10 @@ mod tests {
             "/rsgateway/data/json/subscriber"
         );
         assert_eq!(
+            config.runner.scenarios[0].request.headers.as_ref().unwrap()[0]["content-type"],
+            "application/json"
+        );
+        assert_eq!(
             config.runner.scenarios[0].request.body,
             Some(
                 r#"{
@@ -243,6 +251,7 @@ mod tests {
             config.runner.scenarios[1].request.path,
             "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
         );
+        assert_eq!(config.runner.scenarios[1].request.headers, None);
         assert_eq!(config.runner.scenarios[1].request.body, None);
         assert_eq!(config.runner.scenarios[1].response.assert.status, 200);
     }
