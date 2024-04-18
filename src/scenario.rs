@@ -327,11 +327,15 @@ mod tests {
 
         let global_variables = vec![&var1, &var2];
 
+        let mut headers = HashMap::new();
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+
         let scenario = Scenario {
             name: "Scenario_1".into(),
             request: Request {
                 uri: "/endpoint".into(),
                 method: Method::GET,
+                headers: Some(vec![headers]),
                 body: Some(r#"{"test": "${VAR1}_${VAR2}"}"#.into()),
             },
             response: Response {
@@ -376,6 +380,7 @@ mod tests {
             request: Request {
                 uri: "/endpoint".into(),
                 method: Method::GET,
+                headers: None,
                 body: None,
             },
             response: Response {
@@ -415,6 +420,7 @@ mod tests {
             request: Request {
                 uri: "/endpoint".into(),
                 method: Method::GET,
+                headers: None,
                 body: None,
             },
             response: Response {
