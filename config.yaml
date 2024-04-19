@@ -1,7 +1,7 @@
 log_level: "Debug"
 parallel: 1
 runner:
-  target_rps: 1
+  target_rps: 2
   duration: "3s"
   batch_size: "Auto"
   # batch_size: 2
@@ -52,6 +52,11 @@ runner:
           - name: chargingDataRef
             from: Header
             path: "location"
+            # function: 
+            #   type: Substring
+            #   delimiter: "/"
+            #   index: 2
+            #       # "location.substring(location.lastIndexOf('/') + 1)"
     # - name: chargingDataUpdate
     #   request:
     #     method: POST

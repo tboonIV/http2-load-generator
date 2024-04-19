@@ -409,6 +409,7 @@ mod tests {
 
         let response1 = HttpResponse {
             status: StatusCode::OK,
+            headers: None,
             body: None,
             request_start: std::time::Instant::now(),
             retry_count: 0,
@@ -416,6 +417,7 @@ mod tests {
 
         let response2 = HttpResponse {
             status: StatusCode::NOT_FOUND,
+            headers: None,
             body: None,
             request_start: std::time::Instant::now(),
             retry_count: 0,
@@ -450,6 +452,7 @@ mod tests {
 
         scenario.update_variables(&HttpResponse {
             status: StatusCode::OK,
+            headers: None,
             body: Some(serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap()),
             request_start: std::time::Instant::now(),
             retry_count: 0,
