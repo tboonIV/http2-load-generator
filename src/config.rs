@@ -119,7 +119,14 @@ pub struct ResponseAssert {
 #[derive(Debug, Deserialize, Clone)]
 pub struct ResponseDefine {
     pub name: String,
-    pub from: String,
+    pub from: DefineFrom,
+    pub path: String,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Copy, Clone)]
+pub enum DefineFrom {
+    Header,
+    Body,
 }
 
 pub fn read_yaml_file(path: &str) -> Result<Config, Box<dyn Error>> {
@@ -188,10 +195,14 @@ mod tests {
               response:
                 assert:
                   status: 200
+                define:
+                  - name: externalId
+                    from: Body
+                    path: "$.ObjectId"
             - name: querySubscriber
               request:
                 method: GET
-                path: "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
+                path: "/rsgateway/data/json/subscriber/query/ExternalId/${externalId}"
               response:
                 assert:
                   status: 200
@@ -249,7 +260,7 @@ mod tests {
         assert_eq!(config.runner.scenarios[1].request.method, "GET");
         assert_eq!(
             config.runner.scenarios[1].request.path,
-            "/rsgateway/data/json/subscriber/query/ExternalId/:externalId"
+            "/rsgateway/data/json/subscriber/query/ExternalId/${externalId}"
         );
         assert_eq!(config.runner.scenarios[1].request.headers, None);
         assert_eq!(config.runner.scenarios[1].request.body, None);

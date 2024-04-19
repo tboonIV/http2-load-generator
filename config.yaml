@@ -50,7 +50,8 @@ runner:
           status: 201
         # define:
         #   - name: chargingDataRef
-        #     from: header.Location
+        #     from: Header
+        #     path: "$.Location"
     # - name: chargingDataUpdate
     #   request:
     #     method: POST

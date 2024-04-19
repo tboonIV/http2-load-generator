@@ -22,11 +22,11 @@ pub struct Response {
     pub status: http::StatusCode,
 }
 
-#[derive(Clone)]
-pub struct LocalVariableDefine {
-    pub name: String,
-    pub from: String,
-}
+// #[derive(Clone)]
+// pub struct LocalVariableDefine {
+//     pub name: String,
+//     pub from: String,
+// }
 
 #[derive(Clone)]
 pub struct LocalVariableValue {
@@ -41,7 +41,7 @@ pub struct Scenario<'a> {
     pub request: Request,
     pub response: Response,
     pub global_variables: Vec<&'a Variable>,
-    pub local_variables: Vec<LocalVariableDefine>,
+    pub response_defines: Vec<config::ResponseDefine>,
 }
 
 impl<'a> Scenario<'a> {
@@ -66,15 +66,12 @@ impl<'a> Scenario<'a> {
         };
 
         //Local Variable
-        let mut local_variables = vec![];
+        let mut response_defines = vec![];
         match &config.response.define {
             Some(define) => {
                 for v in define {
-                    let local_variable = LocalVariableDefine {
-                        name: v.name.clone(),
-                        from: v.from.clone(),
-                    };
-                    local_variables.push(local_variable);
+                    let response_define = v.clone();
+                    response_defines.push(response_define);
                 }
             }
             None => {}
@@ -98,7 +95,7 @@ impl<'a> Scenario<'a> {
             request,
             response,
             global_variables,
-            local_variables,
+            response_defines,
         }
     }
 
@@ -163,14 +160,16 @@ impl<'a> Scenario<'a> {
     pub fn update_variables(&self, response: &HttpResponse) -> Vec<LocalVariableValue> {
         let mut values = vec![];
 
+        // TODO check v.from
+
         let _body = match &response.body {
             Some(body) => {
-                for v in &self.local_variables {
-                    let value = jsonpath_lib::select(&body, &v.from).unwrap();
+                for v in &self.response_defines {
+                    let value = jsonpath_lib::select(&body, &v.path).unwrap();
                     let value = value.get(0).unwrap().as_str().unwrap();
                     log::debug!(
                         "Set local var from json field: '{}', name: '{}' value: '{}'",
-                        v.from,
+                        v.path,
                         v.name,
                         value
                     );
@@ -342,7 +341,7 @@ mod tests {
                 status: StatusCode::OK,
             },
             global_variables,
-            local_variables: vec![],
+            response_defines: vec![],
         };
 
         // First request
@@ -387,7 +386,7 @@ mod tests {
                 status: StatusCode::OK,
             },
             global_variables: vec![],
-            local_variables: vec![],
+            response_defines: vec![],
         };
 
         let response1 = HttpResponse {
@@ -410,9 +409,10 @@ mod tests {
 
     #[test]
     fn test_scenario_update_variables() {
-        let local_variables = vec![LocalVariableDefine {
+        let response_defines = vec![config::ResponseDefine {
             name: "ObjectId".into(),
-            from: "$.ObjectId".into(),
+            from: config::DefineFrom::Body,
+            path: "$.ObjectId".into(),
         }];
 
         let scenario = Scenario {
@@ -427,7 +427,7 @@ mod tests {
                 status: StatusCode::OK,
             },
             global_variables: vec![],
-            local_variables,
+            response_defines,
         };
 
         scenario.update_variables(&HttpResponse {
