@@ -160,30 +160,48 @@ impl<'a> Scenario<'a> {
     pub fn update_variables(&self, response: &HttpResponse) -> Vec<LocalVariableValue> {
         let mut values = vec![];
 
-        // TODO check v.from
-
-        let _body = match &response.body {
-            Some(body) => {
-                for v in &self.response_defines {
-                    let value = jsonpath_lib::select(&body, &v.path).unwrap();
-                    let value = value.get(0).unwrap().as_str().unwrap();
-                    log::debug!(
-                        "Set local var from json field: '{}', name: '{}' value: '{}'",
-                        v.path,
-                        v.name,
-                        value
-                    );
-                    let value = LocalVariableValue {
-                        name: v.name.clone(),
-                        value: value.to_string(),
-                    };
-                    values.push(value);
+        for v in &self.response_defines {
+            match v.from {
+                config::DefineFrom::Header => {
+                    //
+                    if let Some(headers) = &response.headers {
+                        for header in headers {
+                            // TODO should be case-insensitive
+                            if let Some(value) = header.get(&v.path) {
+                                log::debug!(
+                                    "Set local var from header: '{}', name: '{}' value: '{}'",
+                                    v.path,
+                                    v.name,
+                                    value
+                                );
+                                let value = LocalVariableValue {
+                                    name: v.name.clone(),
+                                    value: value.clone(),
+                                };
+                                values.push(value);
+                            }
+                        }
+                    }
                 }
-
-                Some(body)
+                config::DefineFrom::Body => {
+                    if let Some(body) = &response.body {
+                        let value = jsonpath_lib::select(&body, &v.path).unwrap();
+                        let value = value.get(0).unwrap().as_str().unwrap();
+                        log::debug!(
+                            "Set local var from json field: '{}', name: '{}' value: '{}'",
+                            v.path,
+                            v.name,
+                            value
+                        );
+                        let value = LocalVariableValue {
+                            name: v.name.clone(),
+                            value: value.to_string(),
+                        };
+                        values.push(value);
+                    }
+                }
             }
-            None => None,
-        };
+        }
 
         values
     }

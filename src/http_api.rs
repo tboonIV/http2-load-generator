@@ -20,6 +20,7 @@ pub struct HttpRequest {
 
 pub struct HttpResponse {
     pub status: StatusCode,
+    pub headers: Option<Vec<HashMap<String, String>>>,
     pub body: Option<serde_json::Value>,
     pub request_start: Instant,
     pub retry_count: u8,
@@ -61,7 +62,19 @@ pub async fn send_request(
             let response = response.await?;
             log::trace!("Response: {:?}", response);
 
+            // Headers
+            let mut headers = vec![];
+            for (k, v) in response.headers().iter() {
+                let mut header = HashMap::new();
+                header.insert(k.as_str().to_string(), v.to_str()?.to_string());
+                headers.push(header);
+            }
+            let headers = Some(headers);
+
+            // Status
             let status = response.status();
+
+            // Body
             let mut body = response.into_body();
             let mut response_body = String::new();
             while let Some(chunk) = body.data().await {
@@ -70,6 +83,7 @@ pub async fn send_request(
 
             Ok(HttpResponse {
                 status,
+                headers,
                 body: serde_json::from_str(&response_body)?,
                 request_start,
                 retry_count,
@@ -84,6 +98,7 @@ pub async fn send_request(
                 // TODO need better error handling
                 HttpResponse {
                     status: StatusCode::INTERNAL_SERVER_ERROR,
+                    headers: None,
                     body: None,
                     request_start,
                     retry_count,

@@ -48,10 +48,10 @@ runner:
       response:
         assert:
           status: 201
-        # define:
-        #   - name: chargingDataRef
-        #     from: Header
-        #     path: "$.Location"
+        define:
+          - name: chargingDataRef
+            from: Header
+            path: "location"
     # - name: chargingDataUpdate
     #   request:
     #     method: POST
