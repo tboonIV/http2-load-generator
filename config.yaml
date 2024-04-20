@@ -52,11 +52,11 @@ runner:
           - name: chargingDataRef
             from: Header
             path: "location"
-            # function: 
-            #   type: Substring
-            #   delimiter: "/"
-            #   index: 2
-            #       # "location.substring(location.lastIndexOf('/') + 1)"
+            function: 
+              type: Split
+              delimiter: "/"
+              index: 3
+                  # "location.substring(location.lastIndexOf('/') + 1)"
     # - name: chargingDataUpdate
     #   request:
     #     method: POST

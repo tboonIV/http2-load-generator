@@ -73,6 +73,7 @@ pub struct Variable {
 pub enum Function {
     Incremental(IncrementalFunction),
     Random(RandomFunction),
+    Split(SplitFunction),
     // ThreadId,
     // RunnerId,
 }
@@ -88,6 +89,12 @@ pub struct IncrementalFunction {
 pub struct RandomFunction {
     pub min: i32,
     pub max: i32,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+pub struct SplitFunction {
+    pub delimiter: String,
+    pub index: i32,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -121,6 +128,7 @@ pub struct ResponseDefine {
     pub name: String,
     pub from: DefineFrom,
     pub path: String,
+    pub function: Option<Function>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Copy, Clone)]

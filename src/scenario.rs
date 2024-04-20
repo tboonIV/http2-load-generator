@@ -218,6 +218,7 @@ impl Global {
             let v: Box<dyn Function> = match variable.function {
                 config::Function::Incremental(prop) => Box::new(IncrementalVariable::new(prop)),
                 config::Function::Random(prop) => Box::new(RandomVariable::new(prop)),
+                config::Function::Split(prop) => Box::new(SplitVariable::new(prop)),
             };
             variables.insert(
                 variable.name.clone(),
@@ -293,6 +294,30 @@ impl Function for RandomVariable {
     }
 }
 
+#[derive(Debug)]
+pub struct SplitVariable {
+    delimiter: String,
+    index: i32,
+}
+
+impl SplitVariable {
+    pub fn new(properties: config::SplitFunction) -> SplitVariable {
+        SplitVariable {
+            delimiter: properties.delimiter,
+            index: properties.index,
+        }
+    }
+}
+
+impl Function for SplitVariable {
+    fn get_next(&self) -> String {
+        // TODO remove hardcode
+        let value = "http://example.com/object-id";
+        let parts = value.split(&self.delimiter).collect::<Vec<&str>>();
+        parts[self.index as usize].to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -321,6 +346,17 @@ mod tests {
 
         let value = variable.get_next().parse::<i32>().unwrap();
         assert!(value >= 0 && value <= 10);
+    }
+
+    #[test]
+    fn test_split_variable() {
+        let variable = SplitVariable::new(config::SplitFunction {
+            delimiter: "/".to_string(),
+            index: 3,
+        });
+
+        let value = variable.get_next();
+        assert_eq!(value, "object-id");
     }
 
     #[test]
@@ -433,6 +469,7 @@ mod tests {
             name: "ObjectId".into(),
             from: config::DefineFrom::Body,
             path: "$.ObjectId".into(),
+            function: None,
         }];
 
         let scenario = Scenario {
