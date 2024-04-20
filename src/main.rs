@@ -1,4 +1,5 @@
 mod config;
+mod function;
 mod http_api;
 mod runner;
 mod scenario;
