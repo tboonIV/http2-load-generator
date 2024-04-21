@@ -110,10 +110,12 @@ impl<'a> Scenario<'a> {
                 let body = if variables.len() != 0 {
                     let mut body = body.clone();
                     for variable in variables {
+                        // TODO replace scenario::Function with function::Function
                         let value = variable.function.get_next();
                         body = body.replace(&format!("${{{}}}", variable.name), &value);
                     }
                     for variable in &new_variables {
+                        // TODO replace scenario::Function with function::Function
                         let value = &variable.value;
                         body = body.replace(&format!("${{{}}}", variable.name), &value);
                     }
@@ -133,7 +135,6 @@ impl<'a> Scenario<'a> {
                 // TODO replace regex with something better
                 // TODO throw error if variable not found
                 let value = variable.value;
-                log::debug!("old value {}", value);
                 let value = match &variable.function {
                     Some(f) => match f {
                         function::Function::Increment(f) => {
@@ -152,7 +153,6 @@ impl<'a> Scenario<'a> {
                     },
                     None => value.clone(),
                 };
-                log::debug!("new value {}", value);
                 uri = uri.replace(&format!("${{{}}}", variable.name), &value);
             }
             uri
@@ -194,32 +194,8 @@ impl<'a> Scenario<'a> {
                                 let function = match &v.function {
                                     Some(f) => {
                                         // TODO solve duplicate config::Function and function::Function
+                                        // TODO remove scenario::Function
                                         let f: function::Function = f.into();
-                                        // let f = match f {
-                                        //     config::Function::Incremental(prop) => {
-                                        //         function::Function::Increment(
-                                        //             function::IncrementFunction {
-                                        //                 start: prop.start,
-                                        //                 treshold: prop.threshold,
-                                        //                 step: prop.step,
-                                        //             },
-                                        //         )
-                                        //     }
-                                        //     config::Function::Random(prop) => {
-                                        //         function::Function::Random(
-                                        //             function::RandomFunction {
-                                        //                 min: prop.min,
-                                        //                 max: prop.max,
-                                        //             },
-                                        //         )
-                                        //     }
-                                        //     config::Function::Split(prop) => {
-                                        //         function::Function::Split(function::SplitFunction {
-                                        //             delimiter: prop.delimiter.clone(),
-                                        //             index: prop.index as usize,
-                                        //         })
-                                        //     }
-                                        // };
                                         Some(f)
                                     }
                                     None => None,

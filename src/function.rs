@@ -1,5 +1,3 @@
-// TODO remove me
-#![allow(dead_code)]
 use crate::config;
 use rand::Rng;
 
@@ -128,6 +126,27 @@ mod tests {
             }
             _ => panic!("Invalid function"),
         }
+    }
+
+    #[test]
+    fn test_increment_function_ext() {
+        let function = IncrementFunction {
+            start: 0,
+            threshold: 3,
+            step: 1,
+        };
+
+        let value = 1;
+        let value = function.apply(value);
+        assert_eq!(value, 2);
+        let value = function.apply(value);
+        assert_eq!(value, 3);
+        let value = function.apply(value);
+        assert_eq!(value, 0);
+        let value = function.apply(value);
+        assert_eq!(value, 1);
+        let value = function.apply(value);
+        assert_eq!(value, 2);
     }
 
     #[test]
