@@ -82,7 +82,7 @@ pub enum Function {
 pub struct IncrementalFunction {
     pub start: i32,
     pub threshold: i32,
-    pub steps: i32,
+    pub step: i32,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -177,7 +177,7 @@ mod tests {
                   type: Incremental
                   start: 0
                   threshold: 100
-                  steps: 1
+                  step: 1
               - name: RANDOM
                 type: Random
                 function:
@@ -230,7 +230,7 @@ mod tests {
             Function::Incremental(IncrementalFunction {
                 start: 0,
                 threshold: 100,
-                steps: 1,
+                step: 1,
             })
         );
         assert_eq!(config.runner.global.variables[1].name, "RANDOM");

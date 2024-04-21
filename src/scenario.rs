@@ -1,4 +1,5 @@
 use crate::config;
+use crate::function;
 use crate::http_api::HttpRequest;
 use crate::http_api::HttpResponse;
 use http::Method;
@@ -32,6 +33,7 @@ pub struct Response {
 pub struct LocalVariableValue {
     pub name: String,
     pub value: String,
+    pub function: Option<function::Function>,
 }
 
 #[derive(Clone)]
@@ -130,7 +132,28 @@ impl<'a> Scenario<'a> {
             for variable in new_variables {
                 // TODO replace regex with something better
                 // TODO throw error if variable not found
-                uri = uri.replace(&format!("${{{}}}", variable.name), &variable.value);
+                let value = variable.value;
+                log::debug!("old value {}", value);
+                let value = match &variable.function {
+                    Some(f) => match f {
+                        function::Function::Increment(f) => {
+                            let value = value.parse::<i32>().unwrap();
+                            let value = f.apply(value);
+                            value.to_string()
+                        }
+                        function::Function::Random(f) => {
+                            let value = f.apply();
+                            value.to_string()
+                        }
+                        function::Function::Split(f) => {
+                            let value = f.apply(value.clone());
+                            value
+                        }
+                    },
+                    None => value.clone(),
+                };
+                log::debug!("new value {}", value);
+                uri = uri.replace(&format!("${{{}}}", variable.name), &value);
             }
             uri
         };
@@ -168,6 +191,39 @@ impl<'a> Scenario<'a> {
                         for header in headers {
                             // TODO should be case-insensitive
                             if let Some(value) = header.get(&v.path) {
+                                let function = match &v.function {
+                                    Some(f) => {
+                                        // TODO solve duplicate config::Function and function::Function
+                                        let f: function::Function = f.into();
+                                        // let f = match f {
+                                        //     config::Function::Incremental(prop) => {
+                                        //         function::Function::Increment(
+                                        //             function::IncrementFunction {
+                                        //                 start: prop.start,
+                                        //                 treshold: prop.threshold,
+                                        //                 step: prop.step,
+                                        //             },
+                                        //         )
+                                        //     }
+                                        //     config::Function::Random(prop) => {
+                                        //         function::Function::Random(
+                                        //             function::RandomFunction {
+                                        //                 min: prop.min,
+                                        //                 max: prop.max,
+                                        //             },
+                                        //         )
+                                        //     }
+                                        //     config::Function::Split(prop) => {
+                                        //         function::Function::Split(function::SplitFunction {
+                                        //             delimiter: prop.delimiter.clone(),
+                                        //             index: prop.index as usize,
+                                        //         })
+                                        //     }
+                                        // };
+                                        Some(f)
+                                    }
+                                    None => None,
+                                };
                                 log::debug!(
                                     "Set local var from header: '{}', name: '{}' value: '{}'",
                                     v.path,
@@ -177,6 +233,7 @@ impl<'a> Scenario<'a> {
                                 let value = LocalVariableValue {
                                     name: v.name.clone(),
                                     value: value.clone(),
+                                    function,
                                 };
                                 values.push(value);
                             }
@@ -196,6 +253,7 @@ impl<'a> Scenario<'a> {
                         let value = LocalVariableValue {
                             name: v.name.clone(),
                             value: value.to_string(),
+                            function: None,
                         };
                         values.push(value);
                     }
@@ -249,7 +307,7 @@ pub trait Function {
 pub struct IncrementalVariable {
     value: AtomicI32,
     threshold: i32,
-    steps: i32,
+    step: i32,
 }
 
 impl IncrementalVariable {
@@ -257,7 +315,7 @@ impl IncrementalVariable {
         IncrementalVariable {
             value: AtomicI32::new(properties.start),
             threshold: properties.threshold,
-            steps: properties.steps,
+            step: properties.step,
         }
     }
 }
@@ -265,7 +323,7 @@ impl IncrementalVariable {
 impl Function for IncrementalVariable {
     fn get_next(&self) -> String {
         let value = &self.value;
-        let next = value.fetch_add(self.steps, std::sync::atomic::Ordering::SeqCst);
+        let next = value.fetch_add(self.step, std::sync::atomic::Ordering::SeqCst);
         let next = next % (self.threshold + 1);
         next.to_string()
     }
@@ -328,7 +386,7 @@ mod tests {
         let variable = IncrementalVariable::new(IncrementalFunction {
             start: 0,
             threshold: 5,
-            steps: 2,
+            step: 2,
         });
 
         assert_eq!(variable.get_next(), "0");
@@ -366,7 +424,7 @@ mod tests {
             function: Box::new(IncrementalVariable::new(IncrementalFunction {
                 start: 0,
                 threshold: 10,
-                steps: 1,
+                step: 1,
             })),
         };
         let var2 = Variable {
@@ -374,7 +432,7 @@ mod tests {
             function: Box::new(IncrementalVariable::new(IncrementalFunction {
                 start: 100,
                 threshold: 1000,
-                steps: 20,
+                step: 20,
             })),
         };
 
