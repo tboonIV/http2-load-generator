@@ -67,7 +67,7 @@ impl<'a> Runner<'a> {
         })
     }
 
-    pub async fn run(&self) -> Result<RunReport, Box<dyn Error>> {
+    pub async fn run(&mut self) -> Result<RunReport, Box<dyn Error>> {
         let tcp = TcpStream::connect(&self.target_address).await?;
         let (client, h2) = client::handshake(tcp).await?;
 
@@ -109,7 +109,7 @@ impl<'a> Runner<'a> {
             let (resp_tx, mut resp_rx) = channel(32);
 
             for _ in 0..param.batch_size {
-                let scenario = self.first_scenario.clone();
+                let scenario = &mut self.first_scenario;
                 let http_request = scenario.next_request(vec![]);
 
                 let ctx = EventContext { scenario_id: 0 };
@@ -149,7 +149,7 @@ impl<'a> Runner<'a> {
                     }
 
                     // Check if there are subsequent scenarios
-                    if let Some(scenario) = self.subsequent_scenarios.get(scenario_id) {
+                    if let Some(scenario) = self.subsequent_scenarios.get_mut(scenario_id) {
                         let http_request = scenario.next_request(new_variable_values);
 
                         eventloop_tx
