@@ -65,7 +65,8 @@ pub struct Global {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Variable {
     pub name: String,
-    pub function: Function,
+    pub value: String,
+    pub function: Function, // TODO should be optional
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -172,14 +173,14 @@ mod tests {
           global:
             variables:
               - name: COUNTER
-                type: Incremental
+                value: 0
                 function:
                   type: Incremental
                   start: 0
                   threshold: 100
                   step: 1
               - name: RANDOM
-                type: Random
+                value: 0
                 function:
                   type: Random
                   min: 0
@@ -225,6 +226,7 @@ mod tests {
         assert_eq!(config.runner.base_url, "http://localhost:8080/".to_string());
         assert_eq!(config.runner.global.variables.len(), 2);
         assert_eq!(config.runner.global.variables[0].name, "COUNTER");
+        assert_eq!(config.runner.global.variables[0].value, "0");
         assert_eq!(
             config.runner.global.variables[0].function,
             Function::Incremental(IncrementalFunction {
@@ -234,6 +236,7 @@ mod tests {
             })
         );
         assert_eq!(config.runner.global.variables[1].name, "RANDOM");
+        assert_eq!(config.runner.global.variables[1].value, "0");
         assert_eq!(
             config.runner.global.variables[1].function,
             Function::Random(RandomFunction { min: 0, max: 100 })

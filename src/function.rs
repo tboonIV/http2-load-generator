@@ -132,21 +132,23 @@ mod tests {
     fn test_increment_function_ext() {
         let function = IncrementFunction {
             start: 0,
-            threshold: 3,
-            step: 1,
+            threshold: 5,
+            step: 2,
         };
 
-        let value = 1;
+        let value = 0;
         let value = function.apply(value);
         assert_eq!(value, 2);
         let value = function.apply(value);
-        assert_eq!(value, 3);
+        assert_eq!(value, 4);
         let value = function.apply(value);
         assert_eq!(value, 0);
         let value = function.apply(value);
-        assert_eq!(value, 1);
-        let value = function.apply(value);
         assert_eq!(value, 2);
+        let value = function.apply(value);
+        assert_eq!(value, 4);
+        let value = function.apply(value);
+        assert_eq!(value, 0);
     }
 
     #[test]
