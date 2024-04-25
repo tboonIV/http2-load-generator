@@ -23,20 +23,14 @@ pub struct Response {
     pub status: http::StatusCode,
 }
 
-// #[derive(Clone)]
-// pub struct LocalVariableDefine {
-//     pub name: String,
-//     pub from: String,
-// }
-
 #[derive(Clone)]
-pub struct LocalVariableValue {
+pub struct Variable {
     pub name: String,
     pub value: String,
     pub function: Option<function::Function>,
 }
 
-impl LocalVariableValue {
+impl Variable {
     pub fn set_value(&mut self, value: &str) {
         self.value = value.to_string();
     }
@@ -48,8 +42,6 @@ pub struct Scenario<'a> {
     pub global: &'a Global,
     pub request: Request,
     pub response: Response,
-    // pub global_variables: Vec<&'a Variable>,
-    // pub new_global_variables: Vec<&'a mut LocalVariableValue>,
     pub response_defines: Vec<config::ResponseDefine>,
 }
 
@@ -111,18 +103,15 @@ impl<'a> Scenario<'a> {
         }
     }
 
-    pub fn next_request(&mut self, new_variables: Vec<LocalVariableValue>) -> HttpRequest {
+    pub fn next_request(&mut self, new_variables: Vec<Variable>) -> HttpRequest {
         // Replace variables in the body
         let body = match &self.request.body {
             Some(body) => {
-                // let global_variables2 = &self.new_global_variables;
-                //
-                // let new_global_variables = vec![];
-                let new_global_variables = &self.global.variables;
+                let variables = &self.global.variables;
 
-                let body = if new_global_variables.len() != 0 {
+                let body = if variables.len() != 0 {
                     let mut body = body.clone();
-                    for v in new_global_variables {
+                    for v in variables {
                         let mut variable = v.lock().unwrap();
 
                         let value = variable.value.clone();
@@ -159,24 +148,6 @@ impl<'a> Scenario<'a> {
                     body.into()
                 };
 
-                // This look really inefficient..
-                // let variables = &self.global_variables;
-                // let body = if variables.len() != 0 {
-                //     let mut body = body.clone();
-                //     for variable in variables {
-                //         // TODO replace scenario::Function with function::Function
-                //         let value = variable.function.get_next();
-                //         body = body.replace(&format!("${{{}}}", variable.name), &value);
-                //     }
-                //     for variable in &new_variables {
-                //         // TODO replace scenario::Function with function::Function
-                //         let value = &variable.value;
-                //         body = body.replace(&format!("${{{}}}", variable.name), &value);
-                //     }
-                //     body
-                // } else {
-                //     body.into()
-                // };
                 Some(serde_json::from_str(&body).unwrap())
             }
             None => None,
@@ -234,7 +205,7 @@ impl<'a> Scenario<'a> {
         return true;
     }
 
-    pub fn update_variables(&self, response: &HttpResponse) -> Vec<LocalVariableValue> {
+    pub fn update_variables(&self, response: &HttpResponse) -> Vec<Variable> {
         let mut values = vec![];
 
         for v in &self.response_defines {
@@ -260,7 +231,7 @@ impl<'a> Scenario<'a> {
                                     v.name,
                                     value
                                 );
-                                let value = LocalVariableValue {
+                                let value = Variable {
                                     name: v.name.clone(),
                                     value: value.clone(),
                                     function,
@@ -280,7 +251,7 @@ impl<'a> Scenario<'a> {
                             v.name,
                             value
                         );
-                        let value = LocalVariableValue {
+                        let value = Variable {
                             name: v.name.clone(),
                             value: value.to_string(),
                             function: None,
@@ -296,7 +267,7 @@ impl<'a> Scenario<'a> {
 }
 
 pub struct Global {
-    variables: Vec<Arc<Mutex<LocalVariableValue>>>,
+    variables: Vec<Arc<Mutex<Variable>>>,
 }
 
 impl Global {
@@ -306,7 +277,7 @@ impl Global {
         for variable in configs.variables {
             let f: function::Function = (&variable.function).into();
             let name = variable.name.clone();
-            let v = LocalVariableValue {
+            let v = Variable {
                 name,
                 value: variable.value,
                 function: Some(f),
@@ -318,96 +289,13 @@ impl Global {
     }
 }
 
-// TODO This need refactor
-// pub struct Variable {
-//     pub name: String,
-//     pub function: Box<dyn Function>,
-// }
-
-// pub trait Function {
-//     fn get_next(&self) -> String;
-// }
-//
-// #[derive(Debug)]
-// pub struct IncrementalVariable {
-//     value: AtomicI32,
-//     threshold: i32,
-//     step: i32,
-// }
-//
-// impl IncrementalVariable {
-//     pub fn new(properties: config::IncrementalFunction) -> IncrementalVariable {
-//         IncrementalVariable {
-//             value: AtomicI32::new(properties.start),
-//             threshold: properties.threshold,
-//             step: properties.step,
-//         }
-//     }
-// }
-//
-// impl Function for IncrementalVariable {
-//     fn get_next(&self) -> String {
-//         let value = &self.value;
-//         let next = value.fetch_add(self.step, std::sync::atomic::Ordering::SeqCst);
-//         let next = next % (self.threshold + 1);
-//         next.to_string()
-//     }
-// }
-//
-// #[derive(Debug)]
-// pub struct RandomVariable {
-//     min: i32,
-//     max: i32,
-// }
-//
-// impl RandomVariable {
-//     pub fn new(properties: config::RandomFunction) -> RandomVariable {
-//         RandomVariable {
-//             min: properties.min,
-//             max: properties.max,
-//         }
-//     }
-// }
-//
-// impl Function for RandomVariable {
-//     fn get_next(&self) -> String {
-//         let mut rng = rand::thread_rng();
-//         let value = rng.gen_range(self.min..=self.max);
-//         value.to_string()
-//     }
-// }
-
-// #[derive(Debug)]
-// pub struct SplitVariable {
-//     delimiter: String,
-//     index: i32,
-// }
-//
-// impl SplitVariable {
-//     pub fn new(properties: config::SplitFunction) -> SplitVariable {
-//         SplitVariable {
-//             delimiter: properties.delimiter,
-//             index: properties.index,
-//         }
-//     }
-// }
-//
-// impl Function for SplitVariable {
-//     fn get_next(&self) -> String {
-//         // TODO remove hardcode
-//         let value = "http://example.com/object-id";
-//         let parts = value.split(&self.delimiter).collect::<Vec<&str>>();
-//         parts[self.index as usize].to_string()
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_scenario_next_request() {
-        let new_var1 = Arc::new(Mutex::new(LocalVariableValue {
+        let new_var1 = Arc::new(Mutex::new(Variable {
             name: "VAR1".into(),
             value: "0".into(),
             function: Some(function::Function::Increment(function::IncrementFunction {
@@ -417,7 +305,7 @@ mod tests {
             })),
         }));
 
-        let new_var2 = Arc::new(Mutex::new(LocalVariableValue {
+        let new_var2 = Arc::new(Mutex::new(Variable {
             name: "VAR2".into(),
             value: "100".into(),
             function: Some(function::Function::Increment(function::IncrementFunction {
@@ -427,14 +315,11 @@ mod tests {
             })),
         }));
 
-        let new_global_variables = vec![new_var1, new_var2];
+        let variables = vec![new_var1, new_var2];
+        let global = Global { variables };
 
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
-
-        let global = Global {
-            variables: new_global_variables,
-        };
 
         let mut scenario = Scenario {
             name: "Scenario_1".into(),
@@ -457,7 +342,7 @@ mod tests {
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
-            Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap()) // Some(serde_json::from_str(r#"{"test": "1_120"}"#).unwrap())
+            Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap())
         );
 
         // Second request
@@ -466,7 +351,7 @@ mod tests {
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
-            Some(serde_json::from_str(r#"{"test": "1_120"}"#).unwrap()) // Some(serde_json::from_str(r#"{"test": "2_140"}"#).unwrap())
+            Some(serde_json::from_str(r#"{"test": "1_120"}"#).unwrap())
         );
 
         // Third request
@@ -475,7 +360,7 @@ mod tests {
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
-            Some(serde_json::from_str(r#"{"test": "2_140"}"#).unwrap()) // Some(serde_json::from_str(r#"{"test": "3_160"}"#).unwrap())
+            Some(serde_json::from_str(r#"{"test": "2_140"}"#).unwrap())
         );
     }
 
