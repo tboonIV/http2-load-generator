@@ -107,8 +107,6 @@ impl<'a> Scenario<'a> {
             global,
             request,
             response,
-            // global_variables,
-            // new_global_variables,
             response_defines,
         }
     }
@@ -120,22 +118,21 @@ impl<'a> Scenario<'a> {
                 // let global_variables2 = &self.new_global_variables;
                 //
                 // let new_global_variables = vec![];
-                let new_global_variables = &self.global.test_variables;
+                let new_global_variables = &self.global.variables;
 
                 let body = if new_global_variables.len() != 0 {
                     let mut body = body.clone();
                     for v in new_global_variables {
                         let mut variable = v.lock().unwrap();
-                        // TODO replace scenario::Function with function::Function
+
                         let value = variable.value.clone();
-                        // println!("!!!Before Value: {:?}", value);
-                        let new_value = if let Some(function) = &variable.function {
-                            match function {
+                        if let Some(function) = &variable.function {
+                            // println!("!!!Before Value: {:?}", value);
+                            let v = match function {
                                 function::Function::Increment(f) => {
                                     let value = value.parse::<i32>().unwrap();
                                     let value = f.apply(value);
-                                    let value = value.to_string();
-                                    value
+                                    value.to_string()
                                 }
                                 function::Function::Random(f) => {
                                     let value = f.apply();
@@ -145,16 +142,10 @@ impl<'a> Scenario<'a> {
                                     let value = f.apply(value.clone());
                                     value
                                 }
-                            }
-                        } else {
-                            // remove clone?
-                            value.clone()
+                            };
+                            //println!("!!!After Value: {:?}", new_value);
+                            variable.set_value(&v);
                         };
-
-                        //println!("!!!After Value: {:?}", new_value);
-                        // Update variable.value
-                        variable.set_value(&new_value);
-                        // self.global.update_variable(&variable.name, &value);
 
                         body = body.replace(&format!("${{{}}}", variable.name), &value);
                     }
@@ -305,17 +296,14 @@ impl<'a> Scenario<'a> {
 }
 
 pub struct Global {
-    // variables: HashMap<String, Variable>,
-    test_variables: Vec<Arc<Mutex<LocalVariableValue>>>,
+    variables: Vec<Arc<Mutex<LocalVariableValue>>>,
 }
 
 impl Global {
     pub fn new(configs: config::Global) -> Self {
-        // let mut variables = HashMap::new();
-        let mut test_variables = vec![];
+        let mut variables = vec![];
 
         for variable in configs.variables {
-            // new local variables
             let f: function::Function = (&variable.function).into();
             let name = variable.name.clone();
             let v = LocalVariableValue {
@@ -323,43 +311,11 @@ impl Global {
                 value: variable.value,
                 function: Some(f),
             };
-            test_variables.push(Arc::new(Mutex::new(v)));
-
-            // TODO remove this soon
-            // let v: Box<dyn Function> = match variable.function {
-            //     config::Function::Incremental(prop) => Box::new(IncrementalVariable::new(prop)),
-            //     config::Function::Random(prop) => Box::new(RandomVariable::new(prop)),
-            //     config::Function::Split(prop) => Box::new(SplitVariable::new(prop)),
-            // };
-            // variables.insert(
-            //     variable.name.clone(),
-            //     Variable {
-            //         name: variable.name,
-            //         function: v,
-            //     },
-            // );
+            variables.push(Arc::new(Mutex::new(v)));
         }
 
-        Global {
-            // variables,
-            test_variables,
-        }
+        Global { variables }
     }
-
-    // pub fn get_variable(&self, name: &str) -> Option<&Variable> {
-    //     self.variables.get(name)
-    // }
-
-    // pub fn update_variable(&self, name: &str, value: &str) {
-    //     for variable in &self.test_variables {
-    //         let mut v = variable.lock().unwrap();
-    //         if v.name == name {
-    //             log::debug!("Update variable: '{}', value: '{}'", name, value);
-    //             v.set_value(value);
-    //             return;
-    //         }
-    //     }
-    // }
 }
 
 // TODO This need refactor
@@ -448,43 +404,6 @@ impl Global {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use crate::config::IncrementalFunction;
-
-    // #[test]
-    // fn test_incremental_variable() {
-    //     let variable = IncrementalVariable::new(IncrementalFunction {
-    //         start: 0,
-    //         threshold: 5,
-    //         step: 2,
-    //     });
-    //
-    //     assert_eq!(variable.get_next(), "0");
-    //     assert_eq!(variable.get_next(), "2");
-    //     assert_eq!(variable.get_next(), "4");
-    //     assert_eq!(variable.get_next(), "0");
-    //     assert_eq!(variable.get_next(), "2");
-    //     assert_eq!(variable.get_next(), "4");
-    //     assert_eq!(variable.get_next(), "0");
-    // }
-    //
-    // #[test]
-    // fn test_random_variable() {
-    //     let variable = RandomVariable::new(config::RandomFunction { min: 0, max: 10 });
-    //
-    //     let value = variable.get_next().parse::<i32>().unwrap();
-    //     assert!(value >= 0 && value <= 10);
-    // }
-    //
-    // #[test]
-    // fn test_split_variable() {
-    //     let variable = SplitVariable::new(config::SplitFunction {
-    //         delimiter: "/".to_string(),
-    //         index: 3,
-    //     });
-    //
-    //     let value = variable.get_next();
-    //     assert_eq!(value, "object-id");
-    // }
 
     #[test]
     fn test_scenario_next_request() {
@@ -510,13 +429,11 @@ mod tests {
 
         let new_global_variables = vec![new_var1, new_var2];
 
-        // let global_variables = vec![&var1, &var2];
-
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
 
         let global = Global {
-            test_variables: new_global_variables,
+            variables: new_global_variables,
         };
 
         let mut scenario = Scenario {
@@ -531,8 +448,6 @@ mod tests {
             response: Response {
                 status: StatusCode::OK,
             },
-            // global_variables,
-            // new_global_variables,
             response_defines: vec![],
         };
 
