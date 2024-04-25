@@ -8,6 +8,8 @@ use rand::Rng;
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicI32;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 #[derive(Clone)]
 pub struct Request {
@@ -45,18 +47,18 @@ impl LocalVariableValue {
 // #[derive(Clone)]
 pub struct Scenario<'a> {
     pub name: String,
-    // pub global: &'a Global,
+    pub global: &'a Global,
     pub request: Request,
     pub response: Response,
     pub global_variables: Vec<&'a Variable>,
-    pub new_global_variables: Vec<&'a mut LocalVariableValue>,
+    // pub new_global_variables: Vec<&'a mut LocalVariableValue>,
     pub response_defines: Vec<config::ResponseDefine>,
 }
 
 impl<'a> Scenario<'a> {
     pub fn new(config: &config::Scenario, global: &'a Global) -> Self {
         // Global Variable
-        let mut new_global_variables = vec![];
+        // let mut new_global_variables = vec![];
         // TODO
 
         let mut global_variables = vec![];
@@ -104,11 +106,11 @@ impl<'a> Scenario<'a> {
 
         Scenario {
             name: config.name.clone(),
-            // global,
+            global,
             request,
             response,
             global_variables,
-            new_global_variables,
+            // new_global_variables,
             response_defines,
         }
     }
@@ -118,9 +120,14 @@ impl<'a> Scenario<'a> {
         let body = match &self.request.body {
             Some(body) => {
                 // let global_variables2 = &self.new_global_variables;
-                let body = if self.new_global_variables.len() != 0 {
+                //
+                // let new_global_variables = vec![];
+                let new_global_variables = &self.global.test_variables;
+
+                let body = if new_global_variables.len() != 0 {
                     let mut body = body.clone();
-                    for variable in &mut self.new_global_variables {
+                    for v in new_global_variables {
+                        let mut variable = v.lock().unwrap();
                         // TODO replace scenario::Function with function::Function
                         let value = variable.value.clone();
                         println!("!!!Before Value: {:?}", value);
@@ -294,7 +301,7 @@ impl<'a> Scenario<'a> {
 
 pub struct Global {
     variables: HashMap<String, Variable>,
-    test_variables: Vec<LocalVariableValue>,
+    test_variables: Vec<Arc<Mutex<LocalVariableValue>>>,
 }
 
 impl Global {
@@ -311,7 +318,7 @@ impl Global {
                 value: variable.value,
                 function: Some(f),
             };
-            test_variables.push(v);
+            test_variables.push(Arc::new(Mutex::new(v)));
 
             // TODO remove this soon
             let v: Box<dyn Function> = match variable.function {
@@ -338,10 +345,13 @@ impl Global {
         self.variables.get(name)
     }
 
-    pub fn update_variable(&mut self, name: &str, value: &str) {
-        for variable in &mut self.test_variables {
-            if variable.name == name {
-                variable.set_value(value);
+    pub fn update_variable(&self, name: &str, value: &str) {
+        for variable in &self.test_variables {
+            let mut v = variable.lock().unwrap();
+            if v.name == name {
+                log::debug!("Update variable: '{}', value: '{}'", name, value);
+                v.set_value(value);
+                return;
             }
         }
     }
@@ -490,7 +500,7 @@ mod tests {
             })),
         };
 
-        let new_var1 = &mut LocalVariableValue {
+        let new_var1 = Arc::new(Mutex::new(LocalVariableValue {
             name: "VAR1".into(),
             value: "0".into(),
             function: Some(function::Function::Increment(function::IncrementFunction {
@@ -498,9 +508,9 @@ mod tests {
                 threshold: 10,
                 step: 1,
             })),
-        };
+        }));
 
-        let new_var2 = &mut LocalVariableValue {
+        let new_var2 = Arc::new(Mutex::new(LocalVariableValue {
             name: "VAR2".into(),
             value: "100".into(),
             function: Some(function::Function::Increment(function::IncrementFunction {
@@ -508,17 +518,23 @@ mod tests {
                 threshold: 1000,
                 step: 20,
             })),
-        };
+        }));
 
-        let mut new_global_variables = vec![new_var1, new_var2];
+        let new_global_variables = vec![new_var1, new_var2];
 
         let global_variables = vec![&var1, &var2];
 
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
 
+        let global = Global {
+            variables: HashMap::new(),
+            test_variables: new_global_variables,
+        };
+
         let mut scenario = Scenario {
             name: "Scenario_1".into(),
+            global: &global,
             request: Request {
                 uri: "/endpoint".into(),
                 method: Method::GET,
@@ -529,7 +545,7 @@ mod tests {
                 status: StatusCode::OK,
             },
             global_variables,
-            new_global_variables,
+            // new_global_variables,
             response_defines: vec![],
         };
 

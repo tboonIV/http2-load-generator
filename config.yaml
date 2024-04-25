@@ -10,12 +10,14 @@ runner:
   global:
     variables:
       - name: COUNTER
+        value: "0"
         function:
           type: Incremental
           start: 0
           threshold: 100000
           step: 1
       - name: RANDOM
+        value: "0"
         function:
           type: Random
           min: 0
