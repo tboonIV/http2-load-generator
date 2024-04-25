@@ -364,73 +364,75 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn test_scenario_assert_response() {
-    //     let scenario = Scenario {
-    //         name: "Scenario_1".into(),
-    //         request: Request {
-    //             uri: "/endpoint".into(),
-    //             method: Method::GET,
-    //             headers: None,
-    //             body: None,
-    //         },
-    //         response: Response {
-    //             status: StatusCode::OK,
-    //         },
-    //         global_variables: vec![],
-    //         response_defines: vec![],
-    //     };
-    //
-    //     let response1 = HttpResponse {
-    //         status: StatusCode::OK,
-    //         headers: None,
-    //         body: None,
-    //         request_start: std::time::Instant::now(),
-    //         retry_count: 0,
-    //     };
-    //
-    //     let response2 = HttpResponse {
-    //         status: StatusCode::NOT_FOUND,
-    //         headers: None,
-    //         body: None,
-    //         request_start: std::time::Instant::now(),
-    //         retry_count: 0,
-    //     };
-    //
-    //     assert_eq!(true, scenario.assert_response(&response1));
-    //     assert_eq!(false, scenario.assert_response(&response2));
-    // }
-    //
-    // #[test]
-    // fn test_scenario_update_variables() {
-    //     let response_defines = vec![config::ResponseDefine {
-    //         name: "ObjectId".into(),
-    //         from: config::DefineFrom::Body,
-    //         path: "$.ObjectId".into(),
-    //         function: None,
-    //     }];
-    //
-    //     let scenario = Scenario {
-    //         name: "Scenario_1".into(),
-    //         request: Request {
-    //             uri: "/endpoint".into(),
-    //             method: Method::GET,
-    //             headers: None,
-    //             body: None,
-    //         },
-    //         response: Response {
-    //             status: StatusCode::OK,
-    //         },
-    //         global_variables: vec![],
-    //         response_defines,
-    //     };
-    //
-    //     scenario.update_variables(&HttpResponse {
-    //         status: StatusCode::OK,
-    //         headers: None,
-    //         body: Some(serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap()),
-    //         request_start: std::time::Instant::now(),
-    //         retry_count: 0,
-    //     });
-    // }
+    #[test]
+    fn test_scenario_assert_response() {
+        let global = Global { variables: vec![] };
+        let scenario = Scenario {
+            name: "Scenario_1".into(),
+            global: &global,
+            request: Request {
+                uri: "/endpoint".into(),
+                method: Method::GET,
+                headers: None,
+                body: None,
+            },
+            response: Response {
+                status: StatusCode::OK,
+            },
+            response_defines: vec![],
+        };
+
+        let response1 = HttpResponse {
+            status: StatusCode::OK,
+            headers: None,
+            body: None,
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        let response2 = HttpResponse {
+            status: StatusCode::NOT_FOUND,
+            headers: None,
+            body: None,
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        assert_eq!(true, scenario.assert_response(&response1));
+        assert_eq!(false, scenario.assert_response(&response2));
+    }
+
+    #[test]
+    fn test_scenario_update_variables() {
+        let response_defines = vec![config::ResponseDefine {
+            name: "ObjectId".into(),
+            from: config::DefineFrom::Body,
+            path: "$.ObjectId".into(),
+            function: None,
+        }];
+        let global = Global { variables: vec![] };
+
+        let scenario = Scenario {
+            name: "Scenario_1".into(),
+            global: &global,
+            request: Request {
+                uri: "/endpoint".into(),
+                method: Method::GET,
+                headers: None,
+                body: None,
+            },
+            response: Response {
+                status: StatusCode::OK,
+            },
+            response_defines,
+        };
+
+        scenario.update_variables(&HttpResponse {
+            status: StatusCode::OK,
+            headers: None,
+            body: Some(serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap()),
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        });
+    }
 }

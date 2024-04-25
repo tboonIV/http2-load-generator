@@ -65,7 +65,7 @@ pub struct Global {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Variable {
     pub name: String,
-    pub value: String,
+    pub value: String,      // TODO make this more generic
     pub function: Function, // TODO should be optional
 }
 

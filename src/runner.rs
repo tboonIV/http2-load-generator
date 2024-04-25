@@ -234,14 +234,6 @@ impl<'a> Runner<'a> {
     }
 }
 
-// #[derive(Debug)]
-// enum EventError {
-//     SendMessageError(String),
-// }
-
-// unsafe impl Send for EventError {}
-//
-
 struct EventContext {
     scenario_id: usize,
 }

@@ -1,10 +1,6 @@
 use crate::config;
 use rand::Rng;
 
-// pub trait Function {
-//     fn apply(&self, input: String) -> String;
-// }
-
 #[derive(Clone)]
 pub enum Function {
     Split(SplitFunction),
@@ -87,79 +83,58 @@ mod tests {
 
     #[test]
     fn test_split_function() {
-        let function = Function::Split(SplitFunction {
+        let f = SplitFunction {
             delimiter: ",".to_string(),
             index: 1,
-        });
-        match function {
-            Function::Split(f) => {
-                assert_eq!(f.apply("a,b,c".to_string()), "b".to_string());
-            }
-            _ => panic!("Invalid function"),
-        }
+        };
+        assert_eq!(f.apply("a,b,c".to_string()), "b".to_string());
     }
 
     #[test]
     fn test_split_function_nth() {
-        let function = Function::Split(SplitFunction {
+        let f = SplitFunction {
             delimiter: ",".to_string(),
             index: 10,
-        });
-        match function {
-            Function::Split(f) => {
-                assert_eq!(f.apply("a,b,c".to_string()), "".to_string());
-            }
-            _ => panic!("Invalid function"),
-        }
+        };
+        assert_eq!(f.apply("a,b,c".to_string()), "".to_string());
     }
 
     #[test]
     fn test_increment_function() {
-        let function = Function::Increment(IncrementFunction {
+        let f = IncrementFunction {
             start: 0,
             threshold: 10,
             step: 1,
-        });
-        match function {
-            Function::Increment(f) => {
-                assert_eq!(f.apply(1), 2);
-            }
-            _ => panic!("Invalid function"),
-        }
+        };
+        assert_eq!(f.apply(1), 2);
     }
 
     #[test]
     fn test_increment_function_ext() {
-        let function = IncrementFunction {
+        let f = IncrementFunction {
             start: 0,
             threshold: 5,
             step: 2,
         };
-
         let value = 0;
-        let value = function.apply(value);
+        let value = f.apply(value);
         assert_eq!(value, 2);
-        let value = function.apply(value);
+        let value = f.apply(value);
         assert_eq!(value, 4);
-        let value = function.apply(value);
+        let value = f.apply(value);
         assert_eq!(value, 0);
-        let value = function.apply(value);
+        let value = f.apply(value);
         assert_eq!(value, 2);
-        let value = function.apply(value);
+        let value = f.apply(value);
         assert_eq!(value, 4);
-        let value = function.apply(value);
+        let value = f.apply(value);
         assert_eq!(value, 0);
     }
 
     #[test]
     fn test_random_function() {
-        let function = Function::Random(RandomFunction { min: 1, max: 10 });
-        match function {
-            Function::Random(f) => {
-                let value = f.apply();
-                assert!(value >= 1 && value <= 10);
-            }
-            _ => panic!("Invalid function"),
-        }
+        let f = RandomFunction { min: 1, max: 10 };
+        let value = f.apply();
+        assert!(value >= 1 && value <= 10);
     }
 }
