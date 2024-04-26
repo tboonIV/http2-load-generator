@@ -36,6 +36,13 @@ impl Variable {
     }
 }
 
+// TODO remove duplicate with config::Value
+// #[derive(Debug, PartialEq, Clone)]
+// pub enum Value {
+//     String(String),
+//     Int(i32),
+// }
+
 // #[derive(Clone)]
 pub struct Scenario<'a> {
     pub name: String,
@@ -277,9 +284,14 @@ impl Global {
         for variable in configs.variables {
             let f: function::Function = (&variable.function).into();
             let name = variable.name.clone();
+            // TODO
+            let value = match variable.value {
+                config::Value::Int(v) => v.to_string(),
+                config::Value::String(v) => v,
+            };
             let v = Variable {
                 name,
-                value: variable.value,
+                value,
                 function: Some(f),
             };
             variables.push(Arc::new(Mutex::new(v)));

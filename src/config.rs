@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use serde_yaml::Value;
+use serde_yaml;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
@@ -65,8 +65,15 @@ pub struct Global {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Variable {
     pub name: String,
-    pub value: String,      // TODO make this more generic
+    pub value: Value,
     pub function: Function, // TODO should be optional
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(untagged)]
+pub enum Value {
+    String(String),
+    Int(i32),
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -142,7 +149,7 @@ pub fn read_yaml_file(path: &str) -> Result<Config, Box<dyn Error>> {
     let mut file = File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
-    let value: Value = serde_yaml::from_str(&contents)?;
+    let value: serde_yaml::Value = serde_yaml::from_str(&contents)?;
     let config: Config = serde_yaml::from_value(value)?;
     Ok(config)
 }
@@ -226,7 +233,7 @@ mod tests {
         assert_eq!(config.runner.base_url, "http://localhost:8080/".to_string());
         assert_eq!(config.runner.global.variables.len(), 2);
         assert_eq!(config.runner.global.variables[0].name, "COUNTER");
-        assert_eq!(config.runner.global.variables[0].value, "0");
+        assert_eq!(config.runner.global.variables[0].value, Value::Int(0));
         assert_eq!(
             config.runner.global.variables[0].function,
             Function::Incremental(IncrementalFunction {
@@ -236,7 +243,7 @@ mod tests {
             })
         );
         assert_eq!(config.runner.global.variables[1].name, "RANDOM");
-        assert_eq!(config.runner.global.variables[1].value, "0");
+        assert_eq!(config.runner.global.variables[1].value, Value::Int(0));
         assert_eq!(
             config.runner.global.variables[1].function,
             Function::Random(RandomFunction { min: 0, max: 100 })
