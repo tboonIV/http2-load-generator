@@ -26,22 +26,22 @@ pub struct Response {
 #[derive(Clone)]
 pub struct Variable {
     pub name: String,
-    pub value: String,
+    pub value: Value,
     pub function: Option<function::Function>,
 }
 
 impl Variable {
-    pub fn set_value(&mut self, value: &str) {
-        self.value = value.to_string();
+    pub fn set_value(&mut self, value: Value) {
+        self.value = value;
     }
 }
 
 // TODO remove duplicate with config::Value
-// #[derive(Debug, PartialEq, Clone)]
-// pub enum Value {
-//     String(String),
-//     Int(i32),
-// }
+#[derive(Debug, PartialEq, Clone)]
+pub enum Value {
+    String(String),
+    Int(i32),
+}
 
 // #[derive(Clone)]
 pub struct Scenario<'a> {
@@ -126,29 +126,50 @@ impl<'a> Scenario<'a> {
                             // println!("!!!Before Value: {:?}", value);
                             let v = match function {
                                 function::Function::Increment(f) => {
-                                    let value = value.parse::<i32>().unwrap();
+                                    let value = match value {
+                                        Value::Int(v) => v,
+                                        Value::String(ref v) => v.parse::<i32>().unwrap(),
+                                    };
                                     let value = f.apply(value);
-                                    value.to_string()
+                                    Value::Int(value)
                                 }
                                 function::Function::Random(f) => {
                                     let value = f.apply();
-                                    value.to_string()
+                                    Value::Int(value)
                                 }
                                 function::Function::Split(f) => {
-                                    let value = f.apply(value.clone());
-                                    value
+                                    let value = match value {
+                                        Value::Int(v) => v.to_string(),
+                                        Value::String(ref v) => v.to_string(),
+                                    };
+                                    let value = f.apply(value);
+                                    Value::String(value)
                                 }
                             };
                             //println!("!!!After Value: {:?}", new_value);
-                            variable.set_value(&v);
+                            variable.set_value(v);
                         };
 
-                        body = body.replace(&format!("${{{}}}", variable.name), &value);
+                        body = match value {
+                            Value::Int(v) => {
+                                body.replace(&format!("${{{}}}", variable.name), &v.to_string())
+                            }
+                            Value::String(v) => {
+                                body.replace(&format!("${{{}}}", variable.name), &v)
+                            }
+                        }
                     }
                     for variable in &new_variables {
                         // TODO replace scenario::Function with function::Function
                         let value = &variable.value;
-                        body = body.replace(&format!("${{{}}}", variable.name), &value);
+                        body = match value {
+                            Value::Int(v) => {
+                                body.replace(&format!("${{{}}}", variable.name), &v.to_string())
+                            }
+                            Value::String(v) => {
+                                body.replace(&format!("${{{}}}", variable.name), &v)
+                            }
+                        }
                     }
                     body
                 } else {
@@ -170,22 +191,37 @@ impl<'a> Scenario<'a> {
                 let value = match &variable.function {
                     Some(f) => match f {
                         function::Function::Increment(f) => {
-                            let value = value.parse::<i32>().unwrap();
+                            let value = match value {
+                                Value::Int(v) => v,
+                                Value::String(v) => v.parse::<i32>().unwrap(),
+                            };
                             let value = f.apply(value);
-                            value.to_string()
+                            Value::Int(value)
                         }
                         function::Function::Random(f) => {
                             let value = f.apply();
-                            value.to_string()
+                            Value::Int(value)
                         }
                         function::Function::Split(f) => {
-                            let value = f.apply(value.clone());
-                            value
+                            let value = match value {
+                                Value::Int(v) => v.to_string(),
+                                Value::String(v) => v,
+                            };
+                            let value = f.apply(value);
+                            Value::String(value)
                         }
                     },
                     None => value,
                 };
-                uri = uri.replace(&format!("${{{}}}", variable.name), &value);
+                match value {
+                    Value::Int(v) => {
+                        uri = uri.replace(&format!("${{{}}}", variable.name), &v.to_string());
+                    }
+                    Value::String(v) => {
+                        uri = uri.replace(&format!("${{{}}}", variable.name), &v);
+                    }
+                }
+                // uri = uri.replace(&format!("${{{}}}", variable.name), &value);
             }
             uri
         };
@@ -240,7 +276,7 @@ impl<'a> Scenario<'a> {
                                 );
                                 let value = Variable {
                                     name: v.name.clone(),
-                                    value: value.clone(),
+                                    value: Value::String(value.clone()), // TODO also support Int
                                     function,
                                 };
                                 values.push(value);
@@ -260,7 +296,7 @@ impl<'a> Scenario<'a> {
                         );
                         let value = Variable {
                             name: v.name.clone(),
-                            value: value.to_string(),
+                            value: Value::String(value.to_string()), // TODO also support Int
                             function: None,
                         };
                         values.push(value);
@@ -284,10 +320,10 @@ impl Global {
         for variable in configs.variables {
             let f: function::Function = (&variable.function).into();
             let name = variable.name.clone();
-            // TODO
+            // TODO remove duplicate
             let value = match variable.value {
-                config::Value::Int(v) => v.to_string(),
-                config::Value::String(v) => v,
+                config::Value::Int(v) => Value::Int(v),
+                config::Value::String(v) => Value::String(v),
             };
             let v = Variable {
                 name,
@@ -309,7 +345,7 @@ mod tests {
     fn test_scenario_next_request() {
         let new_var1 = Arc::new(Mutex::new(Variable {
             name: "VAR1".into(),
-            value: "0".into(),
+            value: Value::Int(0),
             function: Some(function::Function::Increment(function::IncrementFunction {
                 start: 0,
                 threshold: 10,
@@ -319,7 +355,7 @@ mod tests {
 
         let new_var2 = Arc::new(Mutex::new(Variable {
             name: "VAR2".into(),
-            value: "100".into(),
+            value: Value::Int(100),
             function: Some(function::Function::Increment(function::IncrementFunction {
                 start: 100,
                 threshold: 1000,
