@@ -1,6 +1,7 @@
 use crate::function;
+use serde::Deserialize;
 
-#[derive(Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Variable {
     pub name: String,
     pub value: Value,
@@ -13,8 +14,8 @@ impl Variable {
     }
 }
 
-// TODO remove duplicate with config::Value
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(untagged)]
 pub enum Value {
     String(String),
     Int(i32),

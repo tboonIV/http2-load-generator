@@ -12,7 +12,7 @@ runner:
       - name: COUNTER
         value: 0
         function:
-          type: Incremental
+          type: Increment
           start: 0
           threshold: 100000
           step: 1

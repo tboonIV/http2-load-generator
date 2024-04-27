@@ -241,25 +241,26 @@ impl<'a> Scenario<'a> {
                         for header in headers {
                             // TODO should be case-insensitive
                             if let Some(value) = header.get(&v.path) {
-                                let function = match &v.function {
-                                    Some(f) => {
-                                        // TODO solve duplicate config::Function and function::Function
-                                        // TODO remove scenario::Function
-                                        let f: function::Function = f.into();
-                                        Some(f)
-                                    }
-                                    None => None,
-                                };
+                                // let function = match &v.function {
+                                //     Some(f) => {
+                                //         // TODO solve duplicate config::Function and function::Function
+                                //         // TODO remove scenario::Function
+                                //         let f: function::Function = f.into();
+                                //         Some(f)
+                                //     }
+                                //     None => None,
+                                // };
                                 log::debug!(
                                     "Set local var from header: '{}', name: '{}' value: '{}'",
                                     v.path,
                                     v.name,
                                     value
                                 );
+
                                 let value = Variable {
                                     name: v.name.clone(),
                                     value: Value::String(value.clone()), // TODO also support Int
-                                    function,
+                                    function: v.function.clone(),
                                 };
                                 values.push(value);
                             }
@@ -300,22 +301,24 @@ impl Global {
         let mut variables = vec![];
 
         for variable in configs.variables {
-            if let Some(function) = &variable.function {
-                let f: function::Function = function.into();
-                let name = variable.name.clone();
+            // if let Some(function) = &variable.function {
+            // let f: function::Function = function.into();
+            // let f = function;
+            //let name = variable.name.clone();
 
-                // TODO remove duplicate
-                let value = match variable.value {
-                    config::Value::Int(v) => Value::Int(v),
-                    config::Value::String(v) => Value::String(v),
-                };
-                let v = Variable {
-                    name,
-                    value,
-                    function: Some(f),
-                };
-                variables.push(Arc::new(Mutex::new(v)));
-            }
+            // TODO remove duplicate
+            // let value = match variable.value {
+            //     config::Value::Int(v) => Value::Int(v),
+            //     config::Value::String(v) => Value::String(v),
+            // };
+            // let v = Variable {
+            //     name,
+            //     value,
+            //     function: variable.function,
+            // };
+            let v = variable;
+            variables.push(Arc::new(Mutex::new(v)));
+            // }
         }
 
         Global { variables }

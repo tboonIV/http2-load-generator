@@ -1,3 +1,5 @@
+use crate::function;
+use crate::variable;
 use serde::Deserialize;
 use serde_yaml;
 use std::collections::HashMap;
@@ -59,51 +61,51 @@ pub enum BatchSize {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Global {
-    pub variables: Vec<Variable>,
+    pub variables: Vec<variable::Variable>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct Variable {
-    pub name: String,
-    pub value: Value,
-    pub function: Option<Function>,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(untagged)]
-pub enum Value {
-    String(String),
-    Int(i32),
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(tag = "type")]
-pub enum Function {
-    Incremental(IncrementalFunction),
-    Random(RandomFunction),
-    Split(SplitFunction),
-    // ThreadId,
-    // RunnerId,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct IncrementalFunction {
-    pub start: i32,
-    pub threshold: i32,
-    pub step: i32,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct RandomFunction {
-    pub min: i32,
-    pub max: i32,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct SplitFunction {
-    pub delimiter: String,
-    pub index: i32,
-}
+// #[derive(Debug, Deserialize, Clone)]
+// pub struct Variable {
+//     pub name: String,
+//     pub value: Value,
+//     pub function: Option<Function>,
+// }
+//
+// #[derive(Debug, Deserialize, PartialEq, Clone)]
+// #[serde(untagged)]
+// pub enum Value {
+//     String(String),
+//     Int(i32),
+// }
+//
+// #[derive(Debug, Deserialize, PartialEq, Clone)]
+// #[serde(tag = "type")]
+// pub enum Function {
+//     Incremental(IncrementalFunction),
+//     Random(RandomFunction),
+//     Split(SplitFunction),
+//     // ThreadId,
+//     // RunnerId,
+// }
+//
+// #[derive(Debug, Deserialize, PartialEq, Clone)]
+// pub struct IncrementalFunction {
+//     pub start: i32,
+//     pub threshold: i32,
+//     pub step: i32,
+// }
+//
+// #[derive(Debug, Deserialize, PartialEq, Clone)]
+// pub struct RandomFunction {
+//     pub min: i32,
+//     pub max: i32,
+// }
+//
+// #[derive(Debug, Deserialize, PartialEq, Clone)]
+// pub struct SplitFunction {
+//     pub delimiter: String,
+//     pub index: usize,
+// }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Scenario {
@@ -136,7 +138,7 @@ pub struct ResponseDefine {
     pub name: String,
     pub from: DefineFrom,
     pub path: String,
-    pub function: Option<Function>,
+    pub function: Option<function::Function>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Copy, Clone)]
@@ -182,7 +184,7 @@ mod tests {
               - name: COUNTER
                 value: 0
                 function:
-                  type: Incremental
+                  type: Increment
                   start: 0
                   threshold: 100
                   step: 1
@@ -233,20 +235,29 @@ mod tests {
         assert_eq!(config.runner.base_url, "http://localhost:8080/".to_string());
         assert_eq!(config.runner.global.variables.len(), 2);
         assert_eq!(config.runner.global.variables[0].name, "COUNTER");
-        assert_eq!(config.runner.global.variables[0].value, Value::Int(0));
+        assert_eq!(
+            config.runner.global.variables[0].value,
+            variable::Value::Int(0)
+        );
         assert_eq!(
             config.runner.global.variables[0].function,
-            Some(Function::Incremental(IncrementalFunction {
+            Some(function::Function::Increment(function::IncrementFunction {
                 start: 0,
                 threshold: 100,
                 step: 1,
             }))
         );
         assert_eq!(config.runner.global.variables[1].name, "RANDOM");
-        assert_eq!(config.runner.global.variables[1].value, Value::Int(0));
+        assert_eq!(
+            config.runner.global.variables[1].value,
+            variable::Value::Int(0)
+        );
         assert_eq!(
             config.runner.global.variables[1].function,
-            Some(Function::Random(RandomFunction { min: 0, max: 100 }))
+            Some(function::Function::Random(function::RandomFunction {
+                min: 0,
+                max: 100
+            }))
         );
         assert_eq!(config.runner.scenarios.len(), 2);
         assert_eq!(config.runner.scenarios[0].name, "createSubscriber");
