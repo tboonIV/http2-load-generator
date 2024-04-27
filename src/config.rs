@@ -66,7 +66,7 @@ pub struct Global {
 pub struct Variable {
     pub name: String,
     pub value: Value,
-    pub function: Function, // TODO should be optional
+    pub function: Option<Function>,
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -236,17 +236,17 @@ mod tests {
         assert_eq!(config.runner.global.variables[0].value, Value::Int(0));
         assert_eq!(
             config.runner.global.variables[0].function,
-            Function::Incremental(IncrementalFunction {
+            Some(Function::Incremental(IncrementalFunction {
                 start: 0,
                 threshold: 100,
                 step: 1,
-            })
+            }))
         );
         assert_eq!(config.runner.global.variables[1].name, "RANDOM");
         assert_eq!(config.runner.global.variables[1].value, Value::Int(0));
         assert_eq!(
             config.runner.global.variables[1].function,
-            Function::Random(RandomFunction { min: 0, max: 100 })
+            Some(Function::Random(RandomFunction { min: 0, max: 100 }))
         );
         assert_eq!(config.runner.scenarios.len(), 2);
         assert_eq!(config.runner.scenarios[0].name, "createSubscriber");

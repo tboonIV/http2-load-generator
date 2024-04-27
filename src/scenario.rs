@@ -2,6 +2,8 @@ use crate::config;
 use crate::function;
 use crate::http_api::HttpRequest;
 use crate::http_api::HttpResponse;
+use crate::variable::Value;
+use crate::variable::Variable;
 use http::Method;
 use http::StatusCode;
 use regex::Regex;
@@ -21,26 +23,6 @@ pub struct Request {
 #[derive(Clone)]
 pub struct Response {
     pub status: http::StatusCode,
-}
-
-#[derive(Clone)]
-pub struct Variable {
-    pub name: String,
-    pub value: Value,
-    pub function: Option<function::Function>,
-}
-
-impl Variable {
-    pub fn set_value(&mut self, value: Value) {
-        self.value = value;
-    }
-}
-
-// TODO remove duplicate with config::Value
-#[derive(Debug, PartialEq, Clone)]
-pub enum Value {
-    String(String),
-    Int(i32),
 }
 
 // #[derive(Clone)]
@@ -318,19 +300,22 @@ impl Global {
         let mut variables = vec![];
 
         for variable in configs.variables {
-            let f: function::Function = (&variable.function).into();
-            let name = variable.name.clone();
-            // TODO remove duplicate
-            let value = match variable.value {
-                config::Value::Int(v) => Value::Int(v),
-                config::Value::String(v) => Value::String(v),
-            };
-            let v = Variable {
-                name,
-                value,
-                function: Some(f),
-            };
-            variables.push(Arc::new(Mutex::new(v)));
+            if let Some(function) = &variable.function {
+                let f: function::Function = function.into();
+                let name = variable.name.clone();
+
+                // TODO remove duplicate
+                let value = match variable.value {
+                    config::Value::Int(v) => Value::Int(v),
+                    config::Value::String(v) => Value::String(v),
+                };
+                let v = Variable {
+                    name,
+                    value,
+                    function: Some(f),
+                };
+                variables.push(Arc::new(Mutex::new(v)));
+            }
         }
 
         Global { variables }

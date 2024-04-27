@@ -4,6 +4,7 @@ mod http_api;
 mod runner;
 mod scenario;
 mod stats;
+mod variable;
 
 use crate::config::read_yaml_file;
 use crate::runner::AggregatedReport;
