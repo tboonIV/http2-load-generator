@@ -1,34 +1,15 @@
-use crate::config;
 use rand::Rng;
+use serde::Deserialize;
 
-#[derive(Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(tag = "type")]
 pub enum Function {
     Split(SplitFunction),
     Increment(IncrementFunction),
     Random(RandomFunction),
 }
 
-impl From<&config::Function> for Function {
-    fn from(f: &config::Function) -> Self {
-        match f {
-            config::Function::Split(f) => Function::Split(SplitFunction {
-                delimiter: f.delimiter.clone(),
-                index: f.index as usize,
-            }),
-            config::Function::Incremental(f) => Function::Increment(IncrementFunction {
-                start: f.start,
-                threshold: f.threshold,
-                step: f.step,
-            }),
-            config::Function::Random(f) => Function::Random(RandomFunction {
-                min: f.min,
-                max: f.max,
-            }),
-        }
-    }
-}
-
-#[derive(Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct SplitFunction {
     pub delimiter: String,
     pub index: usize,
@@ -44,7 +25,7 @@ impl SplitFunction {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct IncrementFunction {
     pub start: i32,
     pub threshold: i32,
@@ -62,7 +43,7 @@ impl IncrementFunction {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct RandomFunction {
     pub min: i32,
     pub max: i32,

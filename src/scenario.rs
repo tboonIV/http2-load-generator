@@ -7,6 +7,7 @@ use crate::variable::Variable;
 use http::Method;
 use http::StatusCode;
 use regex::Regex;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -25,13 +26,27 @@ pub struct Response {
     pub status: http::StatusCode,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct ResponseDefine {
+    pub name: String,
+    pub from: DefineFrom,
+    pub path: String,
+    pub function: Option<function::Function>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Copy, Clone)]
+pub enum DefineFrom {
+    Header,
+    Body,
+}
+
 // #[derive(Clone)]
 pub struct Scenario<'a> {
     pub name: String,
     pub global: &'a Global,
     pub request: Request,
     pub response: Response,
-    pub response_defines: Vec<config::ResponseDefine>,
+    pub response_defines: Vec<ResponseDefine>,
 }
 
 impl<'a> Scenario<'a> {
@@ -97,40 +112,14 @@ impl<'a> Scenario<'a> {
         let body = match &self.request.body {
             Some(body) => {
                 let variables = &self.global.variables;
-
                 let body = if variables.len() != 0 {
                     let mut body = body.clone();
+                    // Apply Global Variables
                     for v in variables {
                         let mut variable = v.lock().unwrap();
 
                         let value = variable.value.clone();
-                        if let Some(function) = &variable.function {
-                            // println!("!!!Before Value: {:?}", value);
-                            let v = match function {
-                                function::Function::Increment(f) => {
-                                    let value = match value {
-                                        Value::Int(v) => v,
-                                        Value::String(ref v) => v.parse::<i32>().unwrap(),
-                                    };
-                                    let value = f.apply(value);
-                                    Value::Int(value)
-                                }
-                                function::Function::Random(f) => {
-                                    let value = f.apply();
-                                    Value::Int(value)
-                                }
-                                function::Function::Split(f) => {
-                                    let value = match value {
-                                        Value::Int(v) => v.to_string(),
-                                        Value::String(ref v) => v.to_string(),
-                                    };
-                                    let value = f.apply(value);
-                                    Value::String(value)
-                                }
-                            };
-                            //println!("!!!After Value: {:?}", new_value);
-                            variable.set_value(v);
-                        };
+                        variable.apply();
 
                         body = match value {
                             Value::Int(v) => {
@@ -141,8 +130,8 @@ impl<'a> Scenario<'a> {
                             }
                         }
                     }
+                    // Apply Local Variables
                     for variable in &new_variables {
-                        // TODO replace scenario::Function with function::Function
                         let value = &variable.value;
                         body = match value {
                             Value::Int(v) => {
@@ -166,35 +155,14 @@ impl<'a> Scenario<'a> {
 
         let uri = {
             let mut uri = self.request.uri.clone();
-            for variable in new_variables {
-                // TODO replace regex with something better
+            // Apply Local Variables
+            for mut variable in new_variables {
                 // TODO throw error if variable not found
+                // TODO replace regex with something better
+                //
+                variable.apply();
                 let value = variable.value;
-                let value = match &variable.function {
-                    Some(f) => match f {
-                        function::Function::Increment(f) => {
-                            let value = match value {
-                                Value::Int(v) => v,
-                                Value::String(v) => v.parse::<i32>().unwrap(),
-                            };
-                            let value = f.apply(value);
-                            Value::Int(value)
-                        }
-                        function::Function::Random(f) => {
-                            let value = f.apply();
-                            Value::Int(value)
-                        }
-                        function::Function::Split(f) => {
-                            let value = match value {
-                                Value::Int(v) => v.to_string(),
-                                Value::String(v) => v,
-                            };
-                            let value = f.apply(value);
-                            Value::String(value)
-                        }
-                    },
-                    None => value,
-                };
+
                 match value {
                     Value::Int(v) => {
                         uri = uri.replace(&format!("${{{}}}", variable.name), &v.to_string());
@@ -203,7 +171,6 @@ impl<'a> Scenario<'a> {
                         uri = uri.replace(&format!("${{{}}}", variable.name), &v);
                     }
                 }
-                // uri = uri.replace(&format!("${{{}}}", variable.name), &value);
             }
             uri
         };
@@ -235,38 +202,30 @@ impl<'a> Scenario<'a> {
 
         for v in &self.response_defines {
             match v.from {
-                config::DefineFrom::Header => {
+                DefineFrom::Header => {
                     //
                     if let Some(headers) = &response.headers {
                         for header in headers {
                             // TODO should be case-insensitive
                             if let Some(value) = header.get(&v.path) {
-                                let function = match &v.function {
-                                    Some(f) => {
-                                        // TODO solve duplicate config::Function and function::Function
-                                        // TODO remove scenario::Function
-                                        let f: function::Function = f.into();
-                                        Some(f)
-                                    }
-                                    None => None,
-                                };
                                 log::debug!(
                                     "Set local var from header: '{}', name: '{}' value: '{}'",
                                     v.path,
                                     v.name,
                                     value
                                 );
+
                                 let value = Variable {
                                     name: v.name.clone(),
                                     value: Value::String(value.clone()), // TODO also support Int
-                                    function,
+                                    function: v.function.clone(),
                                 };
                                 values.push(value);
                             }
                         }
                     }
                 }
-                config::DefineFrom::Body => {
+                DefineFrom::Body => {
                     if let Some(body) = &response.body {
                         let value = jsonpath_lib::select(&body, &v.path).unwrap();
                         let value = value.get(0).unwrap().as_str().unwrap();
@@ -300,22 +259,8 @@ impl Global {
         let mut variables = vec![];
 
         for variable in configs.variables {
-            if let Some(function) = &variable.function {
-                let f: function::Function = function.into();
-                let name = variable.name.clone();
-
-                // TODO remove duplicate
-                let value = match variable.value {
-                    config::Value::Int(v) => Value::Int(v),
-                    config::Value::String(v) => Value::String(v),
-                };
-                let v = Variable {
-                    name,
-                    value,
-                    function: Some(f),
-                };
-                variables.push(Arc::new(Mutex::new(v)));
-            }
+            let v = variable;
+            variables.push(Arc::new(Mutex::new(v)));
         }
 
         Global { variables }
@@ -325,6 +270,7 @@ impl Global {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::function;
 
     #[test]
     fn test_scenario_next_request() {
@@ -437,9 +383,9 @@ mod tests {
 
     #[test]
     fn test_scenario_update_variables() {
-        let response_defines = vec![config::ResponseDefine {
+        let response_defines = vec![ResponseDefine {
             name: "ObjectId".into(),
-            from: config::DefineFrom::Body,
+            from: DefineFrom::Body,
             path: "$.ObjectId".into(),
             function: None,
         }];
