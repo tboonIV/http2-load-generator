@@ -1,5 +1,4 @@
 use crate::config;
-use crate::function;
 use crate::http_api::HttpRequest;
 use crate::http_api::HttpResponse;
 use crate::variable::Value;
@@ -105,35 +104,6 @@ impl<'a> Scenario<'a> {
 
                         let value = variable.value.clone();
                         variable.apply();
-                        // if let Some(function) = &variable.function {
-                        //     // println!("!!!Before Value: {:?}", value);
-                        //     let value = match function {
-                        //         function::Function::Increment(f) => {
-                        //             let value = match value {
-                        //                 Value::Int(v) => v,
-                        //                 Value::String(ref v) => v.parse::<i32>().unwrap(),
-                        //             };
-                        //             let value = f.apply(value);
-                        //             Value::Int(value)
-                        //             // let value = f.apply2(value);
-                        //             // value
-                        //         }
-                        //         function::Function::Random(f) => {
-                        //             let value = f.apply();
-                        //             Value::Int(value)
-                        //         }
-                        //         function::Function::Split(f) => {
-                        //             let value = match value {
-                        //                 Value::Int(v) => v.to_string(),
-                        //                 Value::String(ref v) => v.to_string(),
-                        //             };
-                        //             let value = f.apply(value);
-                        //             Value::String(value)
-                        //         }
-                        //     };
-                        //     //println!("!!!After Value: {:?}", new_value);
-                        //     variable.set_value(value);
-                        // };
 
                         body = match value {
                             Value::Int(v) => {
@@ -145,7 +115,6 @@ impl<'a> Scenario<'a> {
                         }
                     }
                     for variable in &new_variables {
-                        // TODO replace scenario::Function with function::Function
                         let value = &variable.value;
                         body = match value {
                             Value::Int(v) => {
@@ -169,35 +138,13 @@ impl<'a> Scenario<'a> {
 
         let uri = {
             let mut uri = self.request.uri.clone();
-            for variable in new_variables {
-                // TODO replace regex with something better
+            for mut variable in new_variables {
                 // TODO throw error if variable not found
+                // TODO replace regex with something better
+                //
+                variable.apply();
                 let value = variable.value;
-                let value = match &variable.function {
-                    Some(f) => match f {
-                        function::Function::Increment(f) => {
-                            let value = match value {
-                                Value::Int(v) => v,
-                                Value::String(v) => v.parse::<i32>().unwrap(),
-                            };
-                            let value = f.apply(value);
-                            Value::Int(value)
-                        }
-                        function::Function::Random(f) => {
-                            let value = f.apply();
-                            Value::Int(value)
-                        }
-                        function::Function::Split(f) => {
-                            let value = match value {
-                                Value::Int(v) => v.to_string(),
-                                Value::String(v) => v,
-                            };
-                            let value = f.apply(value);
-                            Value::String(value)
-                        }
-                    },
-                    None => value,
-                };
+
                 match value {
                     Value::Int(v) => {
                         uri = uri.replace(&format!("${{{}}}", variable.name), &v.to_string());
@@ -206,7 +153,6 @@ impl<'a> Scenario<'a> {
                         uri = uri.replace(&format!("${{{}}}", variable.name), &v);
                     }
                 }
-                // uri = uri.replace(&format!("${{{}}}", variable.name), &value);
             }
             uri
         };
@@ -304,24 +250,8 @@ impl Global {
         let mut variables = vec![];
 
         for variable in configs.variables {
-            // if let Some(function) = &variable.function {
-            // let f: function::Function = function.into();
-            // let f = function;
-            //let name = variable.name.clone();
-
-            // TODO remove duplicate
-            // let value = match variable.value {
-            //     config::Value::Int(v) => Value::Int(v),
-            //     config::Value::String(v) => Value::String(v),
-            // };
-            // let v = Variable {
-            //     name,
-            //     value,
-            //     function: variable.function,
-            // };
             let v = variable;
             variables.push(Arc::new(Mutex::new(v)));
-            // }
         }
 
         Global { variables }
@@ -331,6 +261,7 @@ impl Global {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::function;
 
     #[test]
     fn test_scenario_next_request() {

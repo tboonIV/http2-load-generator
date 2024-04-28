@@ -1,7 +1,3 @@
-use std::ops::Deref;
-
-use crate::variable::Value;
-use crate::variable::Variable;
 use rand::Rng;
 use serde::Deserialize;
 
@@ -44,15 +40,6 @@ impl IncrementFunction {
         } else {
             output
         }
-    }
-
-    pub fn apply2(&self, value: Value) -> Value {
-        let value = match value {
-            Value::Int(v) => v,
-            Value::String(v) => v.parse::<i32>().unwrap(),
-        };
-        let output = self.apply(value);
-        Value::Int(output)
     }
 }
 

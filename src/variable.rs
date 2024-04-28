@@ -9,11 +9,6 @@ pub struct Variable {
 }
 
 impl Variable {
-    // pub fn set_value(&mut self, value: Value) {
-    //     self.value = value;
-    // }
-
-    #[allow(dead_code)]
     pub fn apply(&mut self) {
         if let Some(function) = &self.function {
             let value = match function {
