@@ -1,4 +1,5 @@
 use crate::config;
+use crate::function;
 use crate::http_api::HttpRequest;
 use crate::http_api::HttpResponse;
 use crate::variable::Value;
@@ -6,6 +7,7 @@ use crate::variable::Variable;
 use http::Method;
 use http::StatusCode;
 use regex::Regex;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -24,13 +26,27 @@ pub struct Response {
     pub status: http::StatusCode,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+pub struct ResponseDefine {
+    pub name: String,
+    pub from: DefineFrom,
+    pub path: String,
+    pub function: Option<function::Function>,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Copy, Clone)]
+pub enum DefineFrom {
+    Header,
+    Body,
+}
+
 // #[derive(Clone)]
 pub struct Scenario<'a> {
     pub name: String,
     pub global: &'a Global,
     pub request: Request,
     pub response: Response,
-    pub response_defines: Vec<config::ResponseDefine>,
+    pub response_defines: Vec<ResponseDefine>,
 }
 
 impl<'a> Scenario<'a> {
@@ -96,9 +112,9 @@ impl<'a> Scenario<'a> {
         let body = match &self.request.body {
             Some(body) => {
                 let variables = &self.global.variables;
-
                 let body = if variables.len() != 0 {
                     let mut body = body.clone();
+                    // Apply Global Variables
                     for v in variables {
                         let mut variable = v.lock().unwrap();
 
@@ -114,6 +130,7 @@ impl<'a> Scenario<'a> {
                             }
                         }
                     }
+                    // Apply Local Variables
                     for variable in &new_variables {
                         let value = &variable.value;
                         body = match value {
@@ -138,6 +155,7 @@ impl<'a> Scenario<'a> {
 
         let uri = {
             let mut uri = self.request.uri.clone();
+            // Apply Local Variables
             for mut variable in new_variables {
                 // TODO throw error if variable not found
                 // TODO replace regex with something better
@@ -184,21 +202,12 @@ impl<'a> Scenario<'a> {
 
         for v in &self.response_defines {
             match v.from {
-                config::DefineFrom::Header => {
+                DefineFrom::Header => {
                     //
                     if let Some(headers) = &response.headers {
                         for header in headers {
                             // TODO should be case-insensitive
                             if let Some(value) = header.get(&v.path) {
-                                // let function = match &v.function {
-                                //     Some(f) => {
-                                //         // TODO solve duplicate config::Function and function::Function
-                                //         // TODO remove scenario::Function
-                                //         let f: function::Function = f.into();
-                                //         Some(f)
-                                //     }
-                                //     None => None,
-                                // };
                                 log::debug!(
                                     "Set local var from header: '{}', name: '{}' value: '{}'",
                                     v.path,
@@ -216,7 +225,7 @@ impl<'a> Scenario<'a> {
                         }
                     }
                 }
-                config::DefineFrom::Body => {
+                DefineFrom::Body => {
                     if let Some(body) = &response.body {
                         let value = jsonpath_lib::select(&body, &v.path).unwrap();
                         let value = value.get(0).unwrap().as_str().unwrap();
@@ -374,9 +383,9 @@ mod tests {
 
     #[test]
     fn test_scenario_update_variables() {
-        let response_defines = vec![config::ResponseDefine {
+        let response_defines = vec![ResponseDefine {
             name: "ObjectId".into(),
-            from: config::DefineFrom::Body,
+            from: DefineFrom::Body,
             path: "$.ObjectId".into(),
             function: None,
         }];

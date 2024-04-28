@@ -1,4 +1,4 @@
-use crate::function;
+use crate::scenario;
 use crate::variable;
 use serde::Deserialize;
 use serde_yaml;
@@ -82,26 +82,12 @@ pub struct Request {
 #[derive(Debug, Deserialize, Clone)]
 pub struct Response {
     pub assert: ResponseAssert,
-    pub define: Option<Vec<ResponseDefine>>,
+    pub define: Option<Vec<scenario::ResponseDefine>>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ResponseAssert {
     pub status: u16,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct ResponseDefine {
-    pub name: String,
-    pub from: DefineFrom,
-    pub path: String,
-    pub function: Option<function::Function>,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Copy, Clone)]
-pub enum DefineFrom {
-    Header,
-    Body,
 }
 
 pub fn read_yaml_file(path: &str) -> Result<Config, Box<dyn Error>> {
@@ -124,6 +110,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::function;
 
     #[test]
     fn test_yaml_serde() {
