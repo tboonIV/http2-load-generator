@@ -64,49 +64,6 @@ pub struct Global {
     pub variables: Vec<variable::Variable>,
 }
 
-// #[derive(Debug, Deserialize, Clone)]
-// pub struct Variable {
-//     pub name: String,
-//     pub value: Value,
-//     pub function: Option<Function>,
-// }
-//
-// #[derive(Debug, Deserialize, PartialEq, Clone)]
-// #[serde(untagged)]
-// pub enum Value {
-//     String(String),
-//     Int(i32),
-// }
-//
-// #[derive(Debug, Deserialize, PartialEq, Clone)]
-// #[serde(tag = "type")]
-// pub enum Function {
-//     Incremental(IncrementalFunction),
-//     Random(RandomFunction),
-//     Split(SplitFunction),
-//     // ThreadId,
-//     // RunnerId,
-// }
-//
-// #[derive(Debug, Deserialize, PartialEq, Clone)]
-// pub struct IncrementalFunction {
-//     pub start: i32,
-//     pub threshold: i32,
-//     pub step: i32,
-// }
-//
-// #[derive(Debug, Deserialize, PartialEq, Clone)]
-// pub struct RandomFunction {
-//     pub min: i32,
-//     pub max: i32,
-// }
-//
-// #[derive(Debug, Deserialize, PartialEq, Clone)]
-// pub struct SplitFunction {
-//     pub delimiter: String,
-//     pub index: usize,
-// }
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct Scenario {
     pub name: String,

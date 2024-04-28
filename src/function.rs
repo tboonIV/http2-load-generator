@@ -1,4 +1,7 @@
-// use crate::config;
+use std::ops::Deref;
+
+use crate::variable::Value;
+use crate::variable::Variable;
 use rand::Rng;
 use serde::Deserialize;
 
@@ -9,26 +12,6 @@ pub enum Function {
     Increment(IncrementFunction),
     Random(RandomFunction),
 }
-
-// impl From<&config::Function> for Function {
-//     fn from(f: &config::Function) -> Self {
-//         match f {
-//             config::Function::Split(f) => Function::Split(SplitFunction {
-//                 delimiter: f.delimiter.clone(),
-//                 index: f.index as usize,
-//             }),
-//             config::Function::Incremental(f) => Function::Increment(IncrementFunction {
-//                 start: f.start,
-//                 threshold: f.threshold,
-//                 step: f.step,
-//             }),
-//             config::Function::Random(f) => Function::Random(RandomFunction {
-//                 min: f.min,
-//                 max: f.max,
-//             }),
-//         }
-//     }
-// }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct SplitFunction {
@@ -61,6 +44,15 @@ impl IncrementFunction {
         } else {
             output
         }
+    }
+
+    pub fn apply2(&self, value: Value) -> Value {
+        let value = match value {
+            Value::Int(v) => v,
+            Value::String(v) => v.parse::<i32>().unwrap(),
+        };
+        let output = self.apply(value);
+        Value::Int(output)
     }
 }
 

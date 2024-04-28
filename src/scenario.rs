@@ -104,33 +104,36 @@ impl<'a> Scenario<'a> {
                         let mut variable = v.lock().unwrap();
 
                         let value = variable.value.clone();
-                        if let Some(function) = &variable.function {
-                            // println!("!!!Before Value: {:?}", value);
-                            let v = match function {
-                                function::Function::Increment(f) => {
-                                    let value = match value {
-                                        Value::Int(v) => v,
-                                        Value::String(ref v) => v.parse::<i32>().unwrap(),
-                                    };
-                                    let value = f.apply(value);
-                                    Value::Int(value)
-                                }
-                                function::Function::Random(f) => {
-                                    let value = f.apply();
-                                    Value::Int(value)
-                                }
-                                function::Function::Split(f) => {
-                                    let value = match value {
-                                        Value::Int(v) => v.to_string(),
-                                        Value::String(ref v) => v.to_string(),
-                                    };
-                                    let value = f.apply(value);
-                                    Value::String(value)
-                                }
-                            };
-                            //println!("!!!After Value: {:?}", new_value);
-                            variable.set_value(v);
-                        };
+                        variable.apply();
+                        // if let Some(function) = &variable.function {
+                        //     // println!("!!!Before Value: {:?}", value);
+                        //     let value = match function {
+                        //         function::Function::Increment(f) => {
+                        //             let value = match value {
+                        //                 Value::Int(v) => v,
+                        //                 Value::String(ref v) => v.parse::<i32>().unwrap(),
+                        //             };
+                        //             let value = f.apply(value);
+                        //             Value::Int(value)
+                        //             // let value = f.apply2(value);
+                        //             // value
+                        //         }
+                        //         function::Function::Random(f) => {
+                        //             let value = f.apply();
+                        //             Value::Int(value)
+                        //         }
+                        //         function::Function::Split(f) => {
+                        //             let value = match value {
+                        //                 Value::Int(v) => v.to_string(),
+                        //                 Value::String(ref v) => v.to_string(),
+                        //             };
+                        //             let value = f.apply(value);
+                        //             Value::String(value)
+                        //         }
+                        //     };
+                        //     //println!("!!!After Value: {:?}", new_value);
+                        //     variable.set_value(value);
+                        // };
 
                         body = match value {
                             Value::Int(v) => {
