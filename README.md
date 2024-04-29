@@ -20,30 +20,99 @@ runner:
   global:
     variables:
       - name: COUNTER
+        value: 0
         function:
-          type: Incremental
+          type: Increment
           start: 0
           threshold: 100000
-          steps: 1
+          step: 1
       - name: RANDOM
+        value: 0
         function:
           type: Random
           min: 0
           max: 100000
   scenarios:
-    - name: createSubscriber
+    - name: chargingDataCreate
       request:
         method: POST
-        path: "/rsgateway/data/json/subscriber"
+        path: "/nchf-convergedcharging/v2/chargingdata"
+        headers: 
+        - content-type: "application/json"
         body: |
           {
-            "$": "MtxRequestSubscriberCreate",
-            "Name": "James Bond",
-            "FirstName": "James_${COUNTER}_${RANDOM}",
-            "LastName": "Bond",
-            "ContactEmail": "james.bond@email.com"
+            "notifyUri": "http://chf/callback/notify",
+            "oneTimeEvent": true,
+            "invocationSequenceNumber": ${COUNTER},
+            "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "nfConsumerIdentification": {
+              "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
+              "nFIPv4Address": "198.51.100.1",
+              "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
+              "nodeFunctionality": "SMF",
+              "nFPLMNID": {
+                "mnc": "123",
+                "mcc": "456"
+              }
+            }
+          }
+      response:
+        assert:
+          status: 201
+        define:
+          - name: chargingDataRef
+            from: Header
+            path: "location"
+            function: 
+              type: Split
+              delimiter: "/"
+              index: 3
+    - name: chargingDataUpdate
+      request:
+        method: POST
+        path: "/nchf-convergedcharging/v2/chargingdata/${chargingDataRef}/update"
+        headers: 
+        - content-type: "application/json"
+        body: |
+          {
+            "invocationSequenceNumber": ${COUNTER},
+            "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "nfConsumerIdentification": {
+              "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
+              "nFIPv4Address": "198.51.100.1",
+              "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
+              "nodeFunctionality": "SMF",
+              "nFPLMNID": {
+                "mnc": "123",
+                "mcc": "456"
+              }
+            }
           }
       response:
         assert:
           status: 200
+    - name: chargingDataRelease
+      request:
+        method: POST
+        path: "/nchf-convergedcharging/v2/chargingdata/${chargingDataRef}/release"
+        headers: 
+        - content-type: "application/json"
+        body: |
+          {
+            "invocationSequenceNumber": ${COUNTER},
+            "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "nfConsumerIdentification": {
+              "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
+              "nFIPv4Address": "198.51.100.1",
+              "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
+              "nodeFunctionality": "SMF",
+              "nFPLMNID": {
+                "mnc": "123",
+                "mcc": "456"
+              }
+            }
+          }
+      response:
+        assert:
+          status: 204
 ```

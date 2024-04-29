@@ -83,7 +83,15 @@ pub async fn send_request(
             let body = if response_body.is_empty() {
                 None
             } else {
-                Some(serde_json::from_str(&response_body)?)
+                // TODO only parse if content-type is application/json
+                let body = serde_json::from_str(&response_body);
+                match body {
+                    Ok(b) => Some(b),
+                    Err(e) => {
+                        log::error!("Error parsing response body: {}", e);
+                        None
+                    }
+                }
             };
 
             Ok(HttpResponse {
