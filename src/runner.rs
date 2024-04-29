@@ -4,6 +4,7 @@ use crate::http_api::{send_request, HttpRequest, HttpResponse};
 use crate::scenario::Global;
 use crate::scenario::Scenario;
 use crate::stats::ApiStats;
+use crate::variable::Variable;
 use bytes::Bytes;
 use h2::client;
 use h2::client::SendRequest;
@@ -112,7 +113,10 @@ impl<'a> Runner<'a> {
                 let scenario = &mut self.first_scenario;
                 let http_request = scenario.next_request(vec![]);
 
-                let ctx = EventContext { scenario_id: 0 };
+                let ctx = EventContext {
+                    scenario_id: 0,
+                    variables: vec![],
+                };
                 eventloop_tx
                     .send(Event::SendMessage(ctx, http_request, resp_tx.clone()))
                     .await?;
@@ -134,7 +138,9 @@ impl<'a> Runner<'a> {
                         &self.subsequent_scenarios[scenario_id - 1]
                     };
 
-                    let mut new_variable_values = vec![];
+                    // let mut new_variable_values = vec![];
+                    let mut variables = ctx.variables;
+
                     if !cur_scenario.assert_response(&response) {
                         // Error Stats
                         api_stats.inc_error();
@@ -145,17 +151,19 @@ impl<'a> Runner<'a> {
                         api_stats.inc_success();
 
                         // Get new variables from response to pass to next scenario
-                        new_variable_values = cur_scenario.update_variables(&response);
+                        let new_variables = cur_scenario.update_variables(&response);
+                        variables.extend(new_variables);
                     }
 
                     // Check if there are subsequent scenarios
                     if let Some(scenario) = self.subsequent_scenarios.get_mut(scenario_id) {
-                        let http_request = scenario.next_request(new_variable_values);
+                        let http_request = scenario.next_request(variables.clone());
 
                         eventloop_tx
                             .send(Event::SendMessage(
                                 EventContext {
                                     scenario_id: scenario_id + 1,
+                                    variables,
                                 },
                                 http_request,
                                 resp_tx.clone(),
@@ -219,9 +227,15 @@ impl<'a> Runner<'a> {
 
                     tokio::spawn(async move {
                         let response = future.await.unwrap(); // handle error?
-                        tx.send((EventContext { scenario_id }, response))
-                            .await
-                            .unwrap(); // handle error?
+                        tx.send((
+                            EventContext {
+                                scenario_id,
+                                variables: ctx.variables,
+                            },
+                            response,
+                        ))
+                        .await
+                        .unwrap(); // handle error?
                     });
                 }
                 Event::Terminate => {
@@ -236,6 +250,7 @@ impl<'a> Runner<'a> {
 
 struct EventContext {
     scenario_id: usize,
+    variables: Vec<Variable>,
 }
 
 enum Event {

@@ -80,11 +80,16 @@ pub async fn send_request(
             while let Some(chunk) = body.data().await {
                 response_body.push_str(&String::from_utf8(chunk?.clone().to_vec())?);
             }
+            let body = if response_body.is_empty() {
+                None
+            } else {
+                Some(serde_json::from_str(&response_body)?)
+            };
 
             Ok(HttpResponse {
                 status,
                 headers,
-                body: serde_json::from_str(&response_body)?,
+                body,
                 request_start,
                 retry_count,
             })
@@ -93,8 +98,8 @@ pub async fn send_request(
 
         match result {
             Ok(ok) => ok,
-            Err(_e) => {
-                // log::error!("Error processing response: {}", e);
+            Err(e) => {
+                log::error!("Error processing response: {}", e);
                 // TODO need better error handling
                 HttpResponse {
                     status: StatusCode::INTERNAL_SERVER_ERROR,
