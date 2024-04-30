@@ -117,9 +117,9 @@ impl<'a> Scenario<'a> {
                     // Apply Global Variables
                     for v in variables {
                         let mut variable = v.lock().unwrap();
+                        variable.apply();
 
                         let value = variable.value.clone();
-                        variable.apply();
 
                         body = match value {
                             Value::Int(v) => {

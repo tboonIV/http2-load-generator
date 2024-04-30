@@ -62,9 +62,12 @@ pub async fn send_request(
             let response = response.await?;
             log::trace!("Response: {:?}", response);
 
+            // TODO remove header duplicate
+            let h = response.headers().clone();
+
             // Headers
             let mut headers = vec![];
-            for (k, v) in response.headers().iter() {
+            for (k, v) in h.iter() {
                 let mut header = HashMap::new();
                 header.insert(k.as_str().to_string(), v.to_str()?.to_string());
                 headers.push(header);
@@ -80,19 +83,8 @@ pub async fn send_request(
             while let Some(chunk) = body.data().await {
                 response_body.push_str(&String::from_utf8(chunk?.clone().to_vec())?);
             }
-            let body = if response_body.is_empty() {
-                None
-            } else {
-                // TODO only parse if content-type is application/json
-                let body = serde_json::from_str(&response_body);
-                match body {
-                    Ok(b) => Some(b),
-                    Err(e) => {
-                        log::error!("Error parsing response body: {}", e);
-                        None
-                    }
-                }
-            };
+
+            let body = parse_json_body(&response_body, &h);
 
             Ok(HttpResponse {
                 status,
@@ -121,6 +113,41 @@ pub async fn send_request(
     });
 
     Ok(result)
+}
+
+fn parse_json_body(response_body: &str, headers: &http::HeaderMap) -> Option<serde_json::Value> {
+    if response_body.is_empty() {
+        return None;
+    }
+
+    let content_type = match get_content_type(headers) {
+        Some(content_type) => content_type,
+        None => {
+            return None;
+        }
+    };
+
+    if !content_type.contains("application/json") {
+        return None;
+    }
+
+    match serde_json::from_str(response_body) {
+        Ok(body) => Some(body),
+        Err(e) => {
+            log::error!("Error parsing response body: {}", e);
+            None
+        }
+    }
+}
+
+fn get_content_type(headers: &http::HeaderMap) -> Option<String> {
+    match headers.get("content-type") {
+        Some(content_type) => match content_type.to_str() {
+            Ok(content_type_str) => Some(content_type_str.to_string()),
+            Err(_e) => None,
+        },
+        None => None,
+    }
 }
 
 async fn send_request_with_retries(

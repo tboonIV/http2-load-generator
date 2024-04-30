@@ -10,8 +10,7 @@ This load generator is built to address these problems. It is optimized for test
 ```bash
 http2-load-generator --config ./config.yaml
 ```
-
-The load generator is configured using a YAML file. Here is an example to configure the load-generator to establish 4 HTTP/2 connections, each with 8000 TPS for a duration of 300 seconds.
+The load generator is configured using a YAML file. Here is an example that configures the load generator to establish 4 HTTP/2 connections, each with 8000 TPS, for a total of 32000 TPS, and a duration of 300 seconds.
 
 ```yaml
 log_level: "Info"

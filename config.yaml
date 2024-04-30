@@ -1,8 +1,8 @@
-log_level: "Info"
-parallel: 4
+log_level: "Debug"
+parallel: 1
 runner:
-  target_rps: 5500
-  duration: "15s"
+  target_rps: 3
+  duration: "3s"
   batch_size: "Auto"
   # batch_size: 2
   # auto_throttle: true
@@ -20,8 +20,8 @@ runner:
         value: 0
         function:
           type: Random
-          min: 0
-          max: 100000
+          min: 100
+          max: 999
   # delay_between_scenario: "500ms"
   scenarios:
     - name: chargingDataCreate
@@ -42,8 +42,8 @@ runner:
               "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
               "nodeFunctionality": "SMF",
               "nFPLMNID": {
-                "mnc": "123",
-                "mcc": "456"
+                "mnc": "${RANDOM}",
+                "mcc": "${RANDOM}"
               }
             }
           }
@@ -74,8 +74,8 @@ runner:
               "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
               "nodeFunctionality": "SMF",
               "nFPLMNID": {
-                "mnc": "123",
-                "mcc": "456"
+                "mnc": "${RANDOM}",
+                "mcc": "${RANDOM}"
               }
             }
           }
@@ -98,8 +98,8 @@ runner:
               "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
               "nodeFunctionality": "SMF",
               "nFPLMNID": {
-                "mnc": "123",
-                "mcc": "456"
+                "mnc": "${RANDOM}",
+                "mcc": "${RANDOM}"
               }
             }
           }
