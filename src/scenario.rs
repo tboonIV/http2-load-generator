@@ -203,26 +203,22 @@ impl<'a> Scenario<'a> {
         for v in &self.response_defines {
             match v.from {
                 DefineFrom::Header => {
-                    //
-                    if let Some(headers) = &response.headers {
-                        for header in headers {
-                            // TODO should be case-insensitive
-                            if let Some(value) = header.get(&v.path) {
-                                log::debug!(
-                                    "Set local var from header: '{}', name: '{}' value: '{}'",
-                                    v.path,
-                                    v.name,
-                                    value
-                                );
+                    let headers = &response.headers;
+                    if let Some(header) = headers.get(&v.path) {
+                        let value = header.to_str().unwrap();
+                        log::debug!(
+                            "Set local var from header: '{}', name: '{}' value: '{}'",
+                            v.path,
+                            v.name,
+                            value,
+                        );
 
-                                let value = Variable {
-                                    name: v.name.clone(),
-                                    value: Value::String(value.clone()), // TODO also support Int
-                                    function: v.function.clone(),
-                                };
-                                values.push(value);
-                            }
-                        }
+                        let value = Variable {
+                            name: v.name.clone(),
+                            value: Value::String(value.into()), // TODO also support Int
+                            function: v.function.clone(),
+                        };
+                        values.push(value);
                     }
                 }
                 DefineFrom::Body => {
@@ -321,7 +317,7 @@ mod tests {
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
-            Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap())
+            Some(serde_json::from_str(r#"{"test": "1_120"}"#).unwrap())
         );
 
         // Second request
@@ -330,7 +326,7 @@ mod tests {
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
-            Some(serde_json::from_str(r#"{"test": "1_120"}"#).unwrap())
+            Some(serde_json::from_str(r#"{"test": "2_140"}"#).unwrap())
         );
 
         // Third request
@@ -339,7 +335,7 @@ mod tests {
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
-            Some(serde_json::from_str(r#"{"test": "2_140"}"#).unwrap())
+            Some(serde_json::from_str(r#"{"test": "3_160"}"#).unwrap())
         );
     }
 
@@ -363,7 +359,7 @@ mod tests {
 
         let response1 = HttpResponse {
             status: StatusCode::OK,
-            headers: None,
+            headers: http::HeaderMap::new(),
             body: None,
             request_start: std::time::Instant::now(),
             retry_count: 0,
@@ -371,7 +367,7 @@ mod tests {
 
         let response2 = HttpResponse {
             status: StatusCode::NOT_FOUND,
-            headers: None,
+            headers: http::HeaderMap::new(),
             body: None,
             request_start: std::time::Instant::now(),
             retry_count: 0,
@@ -408,7 +404,7 @@ mod tests {
 
         scenario.update_variables(&HttpResponse {
             status: StatusCode::OK,
-            headers: None,
+            headers: http::HeaderMap::new(),
             body: Some(serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap()),
             request_start: std::time::Instant::now(),
             retry_count: 0,
