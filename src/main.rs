@@ -3,6 +3,7 @@ mod function;
 mod http_api;
 mod runner;
 mod scenario;
+mod scripting;
 mod stats;
 mod variable;
 
@@ -11,15 +12,27 @@ use crate::runner::AggregatedReport;
 use crate::runner::Runner;
 use crate::scenario::Global;
 use chrono::Local;
+use clap::Parser;
 use std::error::Error;
 use std::io::Write;
 use std::thread;
 use tokio::sync::mpsc;
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    #[arg(short, long, default_value = "./config.yaml")]
+    config: String,
+
+    #[arg(short, long, default_value_t = 1)]
+    count: u8,
+}
+
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
+    let args = Args::parse();
     // Read config
-    let config = read_yaml_file("config.yaml")?;
+    let config = read_yaml_file(&args.config)?;
 
     // Configure Logging
     env_logger::Builder::new()
