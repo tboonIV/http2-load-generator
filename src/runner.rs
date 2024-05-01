@@ -227,6 +227,8 @@ impl<'a> Runner<'a> {
 
                     tokio::spawn(async move {
                         let response = future.await.unwrap(); // handle error?
+                        let response = response.unwrap(); // handle error?
+
                         tx.send((
                             EventContext {
                                 scenario_id,

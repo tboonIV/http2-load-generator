@@ -7,6 +7,7 @@ use http::Request;
 use http::StatusCode;
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt;
 use std::time::Instant;
 use tokio::task::JoinHandle;
 use tokio::time::Duration;
@@ -26,10 +27,27 @@ pub struct HttpResponse {
     pub retry_count: u8,
 }
 
+#[derive(Debug)]
+pub struct HttpError(String);
+
+impl fmt::Display for HttpError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "HttpError: {}", self.0)
+    }
+}
+
+impl Error for HttpError {}
+
+impl From<HttpError> for Box<dyn Error + Send> {
+    fn from(err: HttpError) -> Self {
+        Box::new(err)
+    }
+}
+
 pub async fn send_request(
     client: &mut SendRequest<Bytes>,
     http_request: HttpRequest,
-) -> Result<JoinHandle<HttpResponse>, Box<dyn Error>> {
+) -> Result<JoinHandle<Result<HttpResponse, HttpError>>, Box<dyn Error>> {
     log::debug!(
         "Sending request {} {}",
         http_request.method,
@@ -57,51 +75,39 @@ pub async fn send_request(
     stream.send_data(request_body.into(), true)?;
     // log::debug!("Request sent");
 
-    let result = tokio::task::spawn(async move {
-        let result: Result<HttpResponse, Box<dyn std::error::Error>> = (async {
-            let response = response.await?;
-            log::trace!("Response: {:?}", response);
+    let result: tokio::task::JoinHandle<Result<HttpResponse, HttpError>> =
+        tokio::task::spawn(async move {
+            let result: Result<HttpResponse, Box<dyn std::error::Error>> = (async {
+                let response = response.await?;
+                log::trace!("Response: {:?}", response);
 
-            // Headers
-            let headers = response.headers().clone();
+                // Headers
+                let headers = response.headers().clone();
 
-            // Status
-            let status = response.status();
+                // Status
+                let status = response.status();
 
-            // Body
-            let mut body = response.into_body();
-            let mut response_body = String::new();
-            while let Some(chunk) = body.data().await {
-                response_body.push_str(&String::from_utf8(chunk?.clone().to_vec())?);
-            }
+                // Body
+                let mut body = response.into_body();
+                let mut response_body = String::new();
+                while let Some(chunk) = body.data().await {
+                    response_body.push_str(&String::from_utf8(chunk?.clone().to_vec())?);
+                }
 
-            let body = parse_json_body(&response_body, &headers);
+                let body = parse_json_body(&response_body, &headers);
 
-            Ok(HttpResponse {
-                status,
-                headers,
-                body,
-                request_start,
-                retry_count,
-            })
-        })
-        .await;
-
-        match result {
-            Ok(ok) => ok,
-            Err(e) => {
-                log::error!("Error processing response: {}", e);
-                // TODO need better error handling
-                HttpResponse {
-                    status: StatusCode::INTERNAL_SERVER_ERROR,
-                    headers: http::HeaderMap::new(),
-                    body: None,
+                Ok(HttpResponse {
+                    status,
+                    headers,
+                    body,
                     request_start,
                     retry_count,
-                }
-            }
-        }
-    });
+                })
+            })
+            .await;
+
+            result.map_err(|e| HttpError(format!("Error processing response: {}", e)))
+        });
 
     Ok(result)
 }
