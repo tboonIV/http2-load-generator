@@ -1,6 +1,7 @@
 // TODO REMOVE ME
 #![allow(dead_code)]
 // use serde::Deserialize;
+use std::collections::HashMap;
 use std::error::Error;
 
 // Future Features:
@@ -15,21 +16,18 @@ use std::error::Error;
 //
 #[derive(Debug)]
 pub struct Context {
-    pub variables: Vec<Variable>,
+    pub variables: HashMap<String, Value>,
 }
 
 impl Context {
     pub fn new() -> Self {
-        Context { variables: vec![] }
+        Context {
+            variables: HashMap::new(),
+        }
     }
 
-    pub fn get_variable(&self, name: &str) -> Option<Value> {
-        for variable in &self.variables {
-            if variable.name == name {
-                return Some(variable.value.clone());
-            }
-        }
-        None
+    pub fn get_variable(&self, name: &str) -> Option<&Value> {
+        self.variables.get(name)
     }
 }
 
@@ -43,6 +41,7 @@ impl Scripting {
         Scripting { raw: raw.into() }
     }
 
+    // Might be a bad idea to use split to parse the script
     pub fn eval(&mut self, context: &mut Context) -> Result<(), Box<dyn Error>> {
         let lines: Vec<&str> = self.raw.split('\n').collect();
         for line in lines {
@@ -75,20 +74,35 @@ impl Scripting {
                         Ok(v) => Value::Int(v),
                         Err(_) => {
                             // Check if variable exists
-                            let variable = context.get_variable(value);
-                            if variable.is_none() {
-                                return Err(format!("variable '{}' not found", value).into());
+                            match context.get_variable(value) {
+                                Some(v) => v.clone(),
+                                None => {
+                                    return Err(format!("variable '{}' not found", value).into())
+                                }
                             }
-                            variable.unwrap()
                         }
                     };
 
-                    let variable = Variable {
-                        name: name.into(),
-                        value,
+                    // Check if there is an operator
+                    let value = if parts.len() == 6 {
+                        if parts[4] == "+" {
+                            match value {
+                                Value::Int(v) => {
+                                    let v2 = parts[5].parse::<i32>()?;
+                                    Value::Int(v + v2)
+                                }
+                                _ => return Err("invalid script, expected integer".into()),
+                            }
+                        } else {
+                            return Err(
+                                format!("invalid script, unknown operator '{}'", parts[4]).into()
+                            );
+                        }
+                    } else {
+                        value
                     };
 
-                    context.variables.push(variable);
+                    context.variables.insert(name.into(), value);
                 } else {
                     return Err(format!("invalid script, unknown command '{}'", def).into());
                 }
@@ -121,13 +135,21 @@ mod tests {
         let mut scripting = Scripting::new("def foo = 16");
         scripting.eval(&mut context).unwrap();
         let count = context.get_variable("foo").unwrap();
-        assert_eq!(count, Value::Int(16));
+        assert_eq!(*count, Value::Int(16));
 
         let mut scripting = Scripting::new("def count = foo");
         scripting.eval(&mut context).unwrap();
         let count = context.get_variable("count").unwrap();
-        assert_eq!(count, Value::Int(16));
+        assert_eq!(*count, Value::Int(16));
 
-        // let mut scripting = Scripting::new("def count = count + 1");
+        let mut scripting = Scripting::new("def count = count + 1");
+        scripting.eval(&mut context).unwrap();
+        let count = context.get_variable("count").unwrap();
+        assert_eq!(*count, Value::Int(17));
+
+        let mut scripting = Scripting::new("def foo = foo + 10");
+        scripting.eval(&mut context).unwrap();
+        let count = context.get_variable("foo").unwrap();
+        assert_eq!(*count, Value::Int(26));
     }
 }
