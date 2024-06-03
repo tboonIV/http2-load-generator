@@ -282,6 +282,8 @@ impl RunParameter {
         scenario_count: usize,
     ) -> RunParameter {
         let target_tps = target_rps / scenario_count as u32;
+        let target_tps = if target_tps == 0 { 1 } else { target_tps };
+
         let batch_size = if let Some(batch_size) = batch_size {
             batch_size
         } else {
