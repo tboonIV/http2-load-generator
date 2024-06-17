@@ -130,7 +130,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_scripting() {
+    fn test_scripting_basic() {
         let mut context = Context::new();
         let mut scripting = Scripting::new("def foo = 16");
         scripting.eval(&mut context).unwrap();

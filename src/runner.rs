@@ -55,7 +55,7 @@ impl<'a> Runner<'a> {
         }
         let mut subsequent_scenarios = vec![];
         for scenario_config in subsequent_scenarios_config.iter() {
-            subsequent_scenarios.push(Scenario::new(scenario_config, &global));
+            subsequent_scenarios.push(Scenario::new(scenario_config, &config.base_url, &global));
         }
 
         let scenario_count = subsequent_scenarios_config.len() + 1;
@@ -63,7 +63,7 @@ impl<'a> Runner<'a> {
         Ok(Runner {
             param: RunParameter::new(config.target_rps, duration_s, batch_size, scenario_count),
             target_address: address.into(),
-            first_scenario: Scenario::new(first_scenario_config, &global),
+            first_scenario: Scenario::new(first_scenario_config, &config.base_url, &global),
             subsequent_scenarios,
         })
     }

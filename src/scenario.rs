@@ -43,6 +43,7 @@ pub enum DefineFrom {
 // #[derive(Clone)]
 pub struct Scenario<'a> {
     pub name: String,
+    pub base_url: String,
     pub global: &'a Global,
     pub request: Request,
     pub response: Response,
@@ -50,7 +51,7 @@ pub struct Scenario<'a> {
 }
 
 impl<'a> Scenario<'a> {
-    pub fn new(config: &config::Scenario, global: &'a Global) -> Self {
+    pub fn new(config: &config::Scenario, base_url: &str, global: &'a Global) -> Self {
         // Global Variable
         // let mut new_global_variables = vec![];
         // TODO
@@ -100,6 +101,7 @@ impl<'a> Scenario<'a> {
 
         Scenario {
             name: config.name.clone(),
+            base_url: base_url.into(),
             global,
             request,
             response,
@@ -174,6 +176,8 @@ impl<'a> Scenario<'a> {
             }
             uri
         };
+
+        let uri = format!("{}{}", self.base_url, uri);
 
         let http_request = HttpRequest {
             uri,
