@@ -48,6 +48,7 @@ pub struct Scenario<'a> {
     pub request: Request,
     pub response: Response,
     pub response_defines: Vec<ResponseDefine>,
+    pub assert_panic: bool,
 }
 
 impl<'a> Scenario<'a> {
@@ -106,6 +107,7 @@ impl<'a> Scenario<'a> {
             request,
             response,
             response_defines,
+            assert_panic: true,
         }
     }
 
@@ -196,6 +198,12 @@ impl<'a> Scenario<'a> {
                 self.response.status,
                 response.status
             );
+            if self.assert_panic {
+                panic!(
+                    "Expected status code: {:?}, got: {:?}",
+                    self.response.status, response.status
+                );
+            }
             return false;
         }
         return true;
@@ -302,6 +310,7 @@ mod tests {
 
         let mut scenario = Scenario {
             name: "Scenario_1".into(),
+            base_url: "http://localhost:8080".into(),
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
@@ -313,11 +322,12 @@ mod tests {
                 status: StatusCode::OK,
             },
             response_defines: vec![],
+            assert_panic: false,
         };
 
         // First request
         let request = scenario.next_request(vec![]);
-        assert_eq!(request.uri, "/endpoint");
+        assert_eq!(request.uri, "http://localhost:8080/endpoint");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
@@ -326,7 +336,7 @@ mod tests {
 
         // Second request
         let request = scenario.next_request(vec![]);
-        assert_eq!(request.uri, "/endpoint");
+        assert_eq!(request.uri, "http://localhost:8080/endpoint");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
@@ -335,7 +345,7 @@ mod tests {
 
         // Third request
         let request = scenario.next_request(vec![]);
-        assert_eq!(request.uri, "/endpoint");
+        assert_eq!(request.uri, "http://localhost:8080/endpoint");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
@@ -348,6 +358,7 @@ mod tests {
         let global = Global { variables: vec![] };
         let scenario = Scenario {
             name: "Scenario_1".into(),
+            base_url: "http://localhost:8080".into(),
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
@@ -359,6 +370,7 @@ mod tests {
                 status: StatusCode::OK,
             },
             response_defines: vec![],
+            assert_panic: false,
         };
 
         let response1 = HttpResponse {
@@ -393,6 +405,7 @@ mod tests {
 
         let scenario = Scenario {
             name: "Scenario_1".into(),
+            base_url: "http://localhost:8080".into(),
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
@@ -404,6 +417,7 @@ mod tests {
                 status: StatusCode::OK,
             },
             response_defines,
+            assert_panic: false,
         };
 
         scenario.update_variables(&HttpResponse {
