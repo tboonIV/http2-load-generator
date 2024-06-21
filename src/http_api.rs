@@ -10,6 +10,7 @@ use std::error::Error;
 use std::fmt;
 use std::time::Instant;
 use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use tokio::time::Duration;
 
 pub struct HttpRequest {
@@ -47,6 +48,7 @@ impl From<HttpError> for Box<dyn Error + Send> {
 pub async fn send_request(
     client: &mut SendRequest<Bytes>,
     http_request: HttpRequest,
+    timeout_duration: std::time::Duration,
 ) -> Result<JoinHandle<Result<HttpResponse, HttpError>>, Box<dyn Error>> {
     log::debug!(
         "Sending request {} {}",
@@ -78,7 +80,8 @@ pub async fn send_request(
     let result: tokio::task::JoinHandle<Result<HttpResponse, HttpError>> =
         tokio::task::spawn(async move {
             let result: Result<HttpResponse, Box<dyn std::error::Error>> = (async {
-                let response = response.await?;
+                // let response = response.await?;
+                let response = timeout(timeout_duration, response).await??;
                 log::trace!("Response: {:?}", response);
 
                 // Headers
@@ -90,8 +93,15 @@ pub async fn send_request(
                 // Body
                 let mut body = response.into_body();
                 let mut response_body = String::new();
-                while let Some(chunk) = body.data().await {
-                    response_body.push_str(&String::from_utf8(chunk?.clone().to_vec())?);
+
+                loop {
+                    let chunk = timeout(timeout_duration, body.data()).await;
+                    if let Some(chunk) = chunk? {
+                        response_body.push_str(&String::from_utf8(chunk?.clone().to_vec())?);
+                    } else {
+                        // no more data chunk, exit loop
+                        break;
+                    }
                 }
 
                 let body = parse_json_body(&response_body, &headers);
