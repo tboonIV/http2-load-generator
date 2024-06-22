@@ -221,10 +221,7 @@ impl<'a> Runner<'a> {
         while let Some(event) = rx.recv().await {
             match event {
                 Event::SendMessage(ctx, request, tx) => {
-                    // hardcode 3s for now, TODO make timeout configurable
-                    let future =
-                        send_request(&mut client, request, std::time::Duration::from_secs(3))
-                            .await?;
+                    let future = send_request(&mut client, request).await?;
                     // TODO handle timeout?
 
                     let scenario_id = ctx.scenario_id;

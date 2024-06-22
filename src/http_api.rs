@@ -18,6 +18,7 @@ pub struct HttpRequest {
     pub method: Method,
     pub headers: Option<Vec<HashMap<String, String>>>,
     pub body: Option<serde_json::Value>,
+    pub timeout: Duration,
 }
 
 pub struct HttpResponse {
@@ -48,7 +49,6 @@ impl From<HttpError> for Box<dyn Error + Send> {
 pub async fn send_request(
     client: &mut SendRequest<Bytes>,
     http_request: HttpRequest,
-    timeout_duration: std::time::Duration,
 ) -> Result<JoinHandle<Result<HttpResponse, HttpError>>, Box<dyn Error>> {
     log::debug!(
         "Sending request {} {}",
@@ -81,7 +81,7 @@ pub async fn send_request(
         tokio::task::spawn(async move {
             let result: Result<HttpResponse, Box<dyn std::error::Error>> = (async {
                 // let response = response.await?;
-                let response = timeout(timeout_duration, response).await??;
+                let response = timeout(http_request.timeout, response).await??;
                 log::trace!("Response: {:?}", response);
 
                 // Headers
@@ -95,7 +95,7 @@ pub async fn send_request(
                 let mut response_body = String::new();
 
                 loop {
-                    let chunk = timeout(timeout_duration, body.data()).await;
+                    let chunk = timeout(http_request.timeout, body.data()).await;
                     if let Some(chunk) = chunk? {
                         response_body.push_str(&String::from_utf8(chunk?.clone().to_vec())?);
                     } else {

@@ -77,6 +77,8 @@ pub struct Request {
     pub path: String,
     pub headers: Option<Vec<HashMap<String, String>>>,
     pub body: Option<String>,
+    #[serde(deserialize_with = "humantime_duration_deserializer")]
+    pub timeout: Duration,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -154,6 +156,7 @@ mod tests {
                     "LastName": "Bond",
                     "ContactEmail": "james.bond@email.com"
                   }
+                timeout: 3s  
               response:
                 assert:
                   status: 200
@@ -165,6 +168,7 @@ mod tests {
               request:
                 method: GET
                 path: "/rsgateway/data/json/subscriber/query/ExternalId/${externalId}"
+                timeout: 3s  
               response:
                 assert:
                   status: 200

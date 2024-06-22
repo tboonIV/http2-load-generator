@@ -11,6 +11,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::time::Duration;
 
 #[derive(Clone)]
 pub struct Request {
@@ -19,6 +20,7 @@ pub struct Request {
     pub headers: Option<Vec<HashMap<String, String>>>,
     pub body: Option<String>,
     // pub body: Option<serde_json::Value>,
+    pub timeout: Duration,
 }
 
 #[derive(Clone)]
@@ -93,6 +95,7 @@ impl<'a> Scenario<'a> {
             method: config.request.method.parse().unwrap(),
             headers: config.request.headers.clone(),
             body,
+            timeout: config.request.timeout,
         };
 
         // Response
@@ -186,6 +189,7 @@ impl<'a> Scenario<'a> {
             method: self.request.method.clone(),
             headers: self.request.headers.clone(),
             body,
+            timeout: self.request.timeout.clone(),
         };
 
         http_request
@@ -317,6 +321,7 @@ mod tests {
                 method: Method::GET,
                 headers: Some(vec![headers]),
                 body: Some(r#"{"test": "${VAR1}_${VAR2}"}"#.into()),
+                timeout: Duration::from_secs(3),
             },
             response: Response {
                 status: StatusCode::OK,
@@ -365,6 +370,7 @@ mod tests {
                 method: Method::GET,
                 headers: None,
                 body: None,
+                timeout: Duration::from_secs(3),
             },
             response: Response {
                 status: StatusCode::OK,
@@ -412,6 +418,7 @@ mod tests {
                 method: Method::GET,
                 headers: None,
                 body: None,
+                timeout: Duration::from_secs(3),
             },
             response: Response {
                 status: StatusCode::OK,
