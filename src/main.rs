@@ -56,7 +56,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
         .filter(None, config.log_level.into())
         .init();
 
-    log::debug!("Config: {:?}", config);
+    log::debug!("New Config: {:?}", config);
 
     // Runner in parallel
     let (tx, mut rx) = mpsc::channel(8);

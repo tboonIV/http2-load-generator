@@ -69,7 +69,8 @@ runner:
             function: 
               type: Split
               delimiter: "/"
-              index: 3
+              index:
+                type: Last
     - name: chargingDataUpdate
       request:
         method: POST

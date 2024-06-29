@@ -12,17 +12,37 @@ pub enum Function {
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct SplitFunction {
     pub delimiter: String,
-    pub index: usize,
+    pub index: SplitIndex,
 }
 
 impl SplitFunction {
     pub fn apply(&self, input: String) -> String {
-        input
-            .split(&self.delimiter)
-            .nth(self.index)
-            .unwrap_or("")
-            .to_string()
+        match self.index {
+            SplitIndex::First => input
+                .split(&self.delimiter)
+                .next()
+                .unwrap_or("")
+                .to_string(),
+            SplitIndex::Last => input
+                .split(&self.delimiter)
+                .last()
+                .unwrap_or("")
+                .to_string(),
+            SplitIndex::Nth(index) => input
+                .split(&self.delimiter)
+                .nth(index)
+                .unwrap_or("")
+                .to_string(),
+        }
     }
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(tag = "type", content = "value")]
+pub enum SplitIndex {
+    First,
+    Last,
+    Nth(usize),
 }
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
@@ -66,7 +86,7 @@ mod tests {
     fn test_split_function() {
         let f = SplitFunction {
             delimiter: ",".to_string(),
-            index: 1,
+            index: SplitIndex::Nth(1),
         };
         assert_eq!(f.apply("a,b,c".to_string()), "b".to_string());
     }
@@ -75,9 +95,21 @@ mod tests {
     fn test_split_function_nth() {
         let f = SplitFunction {
             delimiter: ",".to_string(),
-            index: 10,
+            index: SplitIndex::Nth(10),
         };
         assert_eq!(f.apply("a,b,c".to_string()), "".to_string());
+    }
+
+    #[test]
+    fn test_split_function_last_index() {
+        let f = SplitFunction {
+            delimiter: "/".to_string(),
+            index: SplitIndex::Last,
+        };
+        assert_eq!(
+            f.apply("http://localhost:8080/test/v1/foo/12345".to_string()),
+            "12345".to_string()
+        );
     }
 
     #[test]

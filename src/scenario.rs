@@ -6,13 +6,13 @@ use crate::variable::Value;
 use crate::variable::Variable;
 use http::Method;
 use http::StatusCode;
-use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
+// do something
 #[derive(Clone)]
 pub struct Request {
     pub uri: String,
@@ -60,17 +60,26 @@ impl<'a> Scenario<'a> {
         // TODO
 
         // let mut global_variables = vec![];
+        // log::info!("Creating scenario: {}", config.name);
+
         let body = match &config.request.body {
             Some(body) => {
-                let source = body;
-                let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
-                for caps in variable_pattern.captures_iter(source) {
-                    let cap = caps[1].to_string();
-                    log::debug!("Found global variable: {}", cap);
-
-                    // let var = global.get_variable(&cap).unwrap();
-                    // global_variables.push(var);
-                }
+                // The idea is to find out if the body contains any global Variables
+                // and add them to the global_variables
+                //
+                // Since Scenario::new is only called at startup, this will help
+                // to avoid the overhead of parsing the body for global variables
+                //
+                //
+                // let source = body;
+                // let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
+                // for caps in variable_pattern.captures_iter(source) {
+                //     let cap = caps[1].to_string();
+                //     log::debug!("Found global variable: {}", cap);
+                //
+                //     // let var = global.get_variable(&cap).unwrap();
+                //     // global_variables.push(var);
+                // }
 
                 Some(body.to_string())
             }
