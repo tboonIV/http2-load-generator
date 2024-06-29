@@ -1,4 +1,4 @@
-log_level: "Debug"
+log_level: "Trace"
 parallel: 1
 runner:
   target_rps: 3
@@ -51,6 +51,14 @@ runner:
       response:
         assert:
           status: 201
+          headers: 
+          - name: "location"
+            value:
+              type: "NotNull"
+          - name: "content-type"
+            value:
+              type: "Equal"
+              value: "application/json"
         define:
           - name: chargingDataRef
             from: Header

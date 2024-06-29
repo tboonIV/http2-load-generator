@@ -12,7 +12,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-// do something
 #[derive(Clone)]
 pub struct Request {
     pub uri: String,
@@ -26,6 +25,20 @@ pub struct Request {
 #[derive(Clone)]
 pub struct Response {
     pub status: http::StatusCode,
+    pub headers: Option<Vec<HeadersAssert>>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct HeadersAssert {
+    pub name: String,
+    pub value: HeadersValueAssert,
+}
+
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(tag = "type", content = "value")]
+pub enum HeadersValueAssert {
+    NotNull,
+    Equal(String),
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -110,6 +123,7 @@ impl<'a> Scenario<'a> {
         // Response
         let response = Response {
             status: StatusCode::from_u16(config.response.assert.status).unwrap(),
+            headers: config.response.assert.headers.clone(),
         };
 
         Scenario {
@@ -219,6 +233,55 @@ impl<'a> Scenario<'a> {
             }
             return false;
         }
+        if self.response.headers.is_some() {
+            let headers = self.response.headers.as_ref().unwrap();
+            for h in headers {
+                let value = h.value.clone();
+                let header = response
+                    .headers
+                    .get(&h.name)
+                    .map(|hdr| hdr.to_str().unwrap());
+
+                match value {
+                    HeadersValueAssert::NotNull => {
+                        if header.is_none() {
+                            log::error!("Header '{}' is expected but not found", h.name);
+                            if self.assert_panic {
+                                panic!("Header '{}' is expected but not found", h.name);
+                            }
+                            return false;
+                        }
+                    }
+                    HeadersValueAssert::Equal(v) => {
+                        if header.is_none() {
+                            log::error!("Header '{}' is expected but not found", h.name);
+                            if self.assert_panic {
+                                panic!("Header '{}' is expected but not found", h.name);
+                            }
+                            return false;
+                        }
+                        if header.unwrap() != v {
+                            log::error!(
+                                "Header '{}' is expected to be '{}' but got '{}'",
+                                h.name,
+                                v,
+                                header.unwrap()
+                            );
+                            if self.assert_panic {
+                                panic!(
+                                    "Header '{}' is expected to be '{}' but got '{}'",
+                                    h.name,
+                                    v,
+                                    header.unwrap()
+                                );
+                            }
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
         return true;
     }
 
@@ -334,6 +397,7 @@ mod tests {
             },
             response: Response {
                 status: StatusCode::OK,
+                headers: None,
             },
             response_defines: vec![],
             assert_panic: false,
@@ -383,6 +447,7 @@ mod tests {
             },
             response: Response {
                 status: StatusCode::OK,
+                headers: None,
             },
             response_defines: vec![],
             assert_panic: false,
@@ -431,6 +496,7 @@ mod tests {
             },
             response: Response {
                 status: StatusCode::OK,
+                headers: None,
             },
             response_defines,
             assert_panic: false,

@@ -59,6 +59,7 @@ runner:
               }
             }
           }
+        timeout: 3s
       response:
         assert:
           status: 201
@@ -92,6 +93,7 @@ runner:
               }
             }
           }
+        timeout: 3s
       response:
         assert:
           status: 200
@@ -116,6 +118,7 @@ runner:
               }
             }
           }
+        timeout: 3s
       response:
         assert:
           status: 204

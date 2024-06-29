@@ -90,6 +90,7 @@ pub struct Response {
 #[derive(Debug, Deserialize, Clone)]
 pub struct ResponseAssert {
     pub status: u16,
+    pub headers: Option<Vec<scenario::HeadersAssert>>,
 }
 
 pub fn read_yaml_file(path: &str) -> Result<Config, Box<dyn Error>> {
