@@ -27,6 +27,7 @@ pub struct Request {
 pub struct Response {
     pub status: http::StatusCode,
     pub headers: Option<Vec<HeadersAssert>>,
+    pub body: Option<Vec<BodyAssert>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -38,6 +39,19 @@ pub struct HeadersAssert {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(tag = "type", content = "value")]
 pub enum HeadersValueAssert {
+    NotNull,
+    Equal(String),
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct BodyAssert {
+    pub name: String,
+    pub value: BodyValueAssert,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(tag = "type", content = "value")]
+pub enum BodyValueAssert {
     NotNull,
     Equal(String),
 }
@@ -125,6 +139,7 @@ impl<'a> Scenario<'a> {
         let response = Response {
             status: StatusCode::from_u16(config.response.assert.status).unwrap(),
             headers: config.response.assert.headers.clone(),
+            body: config.response.assert.body.clone(),
         };
 
         Scenario {
@@ -220,6 +235,7 @@ impl<'a> Scenario<'a> {
     }
 
     pub fn assert_response(&self, response: &HttpResponse) -> bool {
+        // Assert Status
         if self.response.status != response.status {
             log::error!(
                 "Expected status code: {:?}, got: {:?}",
@@ -234,6 +250,8 @@ impl<'a> Scenario<'a> {
             }
             return false;
         }
+
+        // Assert Headers
         if self.response.headers.is_some() {
             let headers = self.response.headers.as_ref().unwrap();
             for h in headers {
@@ -279,6 +297,40 @@ impl<'a> Scenario<'a> {
                             return false;
                         }
                     }
+                }
+            }
+        }
+
+        // Assert Body
+        if self.response.body.is_some() {
+            let body_assert = self.response.body.as_ref().unwrap();
+
+            let body = response.body.as_ref();
+            if body == None {
+                log::error!("Body is expected but not found");
+                if self.assert_panic {
+                    panic!("Body is expected but not found");
+                }
+                return false;
+            }
+            let body = body.unwrap();
+
+            for b in body_assert {
+                let name_assert = b.name.clone();
+                let value_assert = b.value.clone();
+                let value = body.get(name_assert);
+
+                match value_assert {
+                    BodyValueAssert::NotNull => {
+                        if value.is_none() {
+                            log::error!("Body '{}' is expected but not found", b.name);
+                            if self.assert_panic {
+                                panic!("Body '{}' is expected but not found", b.name);
+                            }
+                            return false;
+                        }
+                    }
+                    BodyValueAssert::Equal(_v) => todo!(),
                 }
             }
         }
@@ -399,6 +451,7 @@ mod tests {
             response: Response {
                 status: StatusCode::OK,
                 headers: None,
+                body: None,
             },
             response_defines: vec![],
             assert_panic: false,
@@ -449,6 +502,7 @@ mod tests {
             response: Response {
                 status: StatusCode::OK,
                 headers: None,
+                body: None,
             },
             response_defines: vec![],
             assert_panic: false,
@@ -498,6 +552,7 @@ mod tests {
             response: Response {
                 status: StatusCode::OK,
                 headers: None,
+                body: None,
             },
             response_defines,
             assert_panic: false,

@@ -100,6 +100,7 @@ pub struct Response {
 pub struct ResponseAssert {
     pub status: u16,
     pub headers: Option<Vec<scenario::HeadersAssert>>,
+    pub body: Option<Vec<scenario::BodyAssert>>,
 }
 
 pub fn read_yaml_file(path: &str) -> Result<Config, Box<dyn Error>> {

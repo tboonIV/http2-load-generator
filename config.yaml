@@ -59,6 +59,10 @@ runner:
             value:
               type: "Equal"
               value: "application/json"
+          body:
+          - name: "invocationSequenceNumber"
+            value:
+              type: "NotNull"
         define:
           - name: chargingDataRef
             from: Header
