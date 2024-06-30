@@ -1,21 +1,30 @@
 use crate::scenario;
 use crate::variable;
 use serde::Deserialize;
+use serde::Serialize;
 use serde_yaml;
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::time::Duration;
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Config {
     pub log_level: LogLevel,
     pub parallel: u8,
     pub runner: RunnerConfig,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Copy, Clone)]
+impl fmt::Display for Config {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let json = serde_json::to_string_pretty(self).map_err(|_| fmt::Error)?;
+        write!(f, "{}", json)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Copy, Clone)]
 pub enum LogLevel {
     Off,
     Error,
@@ -38,7 +47,7 @@ impl Into<log::LevelFilter> for LogLevel {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct RunnerConfig {
     pub target_rps: u32,
     #[serde(deserialize_with = "humantime_duration_deserializer")]
@@ -52,26 +61,26 @@ pub struct RunnerConfig {
     pub scenarios: Vec<Scenario>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(untagged)]
 pub enum BatchSize {
     Auto(String),
     Fixed(u32),
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Global {
     pub variables: Vec<variable::Variable>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Scenario {
     pub name: String,
     pub request: Request,
     pub response: Response,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Request {
     pub method: String,
     pub path: String,
@@ -81,13 +90,13 @@ pub struct Request {
     pub timeout: Duration,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Response {
     pub assert: ResponseAssert,
     pub define: Option<Vec<scenario::ResponseDefine>>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseAssert {
     pub status: u16,
     pub headers: Option<Vec<scenario::HeadersAssert>>,

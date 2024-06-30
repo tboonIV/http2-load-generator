@@ -1,7 +1,8 @@
 use rand::Rng;
 use serde::Deserialize;
+use serde::Serialize;
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(tag = "type")]
 pub enum Function {
     Split(SplitFunction),
@@ -9,7 +10,7 @@ pub enum Function {
     Random(RandomFunction),
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct SplitFunction {
     pub delimiter: String,
     pub index: SplitIndex,
@@ -37,7 +38,7 @@ impl SplitFunction {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(tag = "type", content = "value")]
 pub enum SplitIndex {
     First,
@@ -45,7 +46,7 @@ pub enum SplitIndex {
     Nth(usize),
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct IncrementFunction {
     pub start: i32,
     pub threshold: i32,
@@ -63,7 +64,7 @@ impl IncrementFunction {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct RandomFunction {
     pub min: i32,
     pub max: i32,

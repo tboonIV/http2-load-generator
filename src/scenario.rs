@@ -7,6 +7,7 @@ use crate::variable::Variable;
 use http::Method;
 use http::StatusCode;
 use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -28,20 +29,20 @@ pub struct Response {
     pub headers: Option<Vec<HeadersAssert>>,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct HeadersAssert {
     pub name: String,
     pub value: HeadersValueAssert,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(tag = "type", content = "value")]
 pub enum HeadersValueAssert {
     NotNull,
     Equal(String),
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseDefine {
     pub name: String,
     pub from: DefineFrom,
@@ -49,7 +50,7 @@ pub struct ResponseDefine {
     pub function: Option<function::Function>,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Copy, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Copy, Clone)]
 pub enum DefineFrom {
     Header,
     Body,

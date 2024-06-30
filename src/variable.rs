@@ -1,7 +1,8 @@
 use crate::function;
 use serde::Deserialize;
+use serde::Serialize;
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Variable {
     pub name: String,
     pub value: Value,
@@ -39,7 +40,7 @@ impl Variable {
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(untagged)]
 pub enum Value {
     String(String),
