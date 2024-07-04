@@ -103,11 +103,50 @@ pub struct ResponseAssert {
     pub body: Option<Vec<scenario::BodyAssert>>,
 }
 
-pub fn read_yaml_file(path: &str) -> Result<Config, Box<dyn Error>> {
+fn parse_override(override_str: &str) -> Result<(String, String), Box<dyn Error>> {
+    let parts: Vec<&str> = override_str.split('=').collect();
+    if parts.len() != 2 {
+        return Err("Invalid override".into());
+    }
+    let key = parts[0];
+    let value = parts[1];
+    Ok((key.to_string(), value.to_string()))
+}
+
+fn apply_overrides(config: &mut serde_yaml::Value, overrides: Vec<String>) {
+    for override_str in overrides {
+        let (key, value) = parse_override(&override_str).unwrap();
+        // println!("Override: {}={}", key, value);
+        let keys: Vec<&str> = key.split('.').collect();
+        let mut current = &mut *config;
+        for k in keys.iter().take(keys.len() - 1) {
+            current = current
+                .get_mut(k)
+                .unwrap_or_else(|| panic!("Config not found: {}", k));
+        }
+
+        // Check if config exist
+        if current.get(keys[keys.len() - 1]).is_none() {
+            panic!("Config not found: {}", keys[keys.len() - 1]);
+        }
+
+        // Override the value
+        current[keys[keys.len() - 1]] = if value.parse::<i64>().is_ok() {
+            serde_yaml::Value::Number(serde_yaml::Number::from(value.parse::<i64>().unwrap()))
+        } else {
+            serde_yaml::Value::String(value)
+        };
+    }
+}
+
+pub fn read_yaml_file(path: &str, overrides: Vec<String>) -> Result<Config, Box<dyn Error>> {
     let mut file = File::open(path)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
-    let value: serde_yaml::Value = serde_yaml::from_str(&contents)?;
+    let mut value: serde_yaml::Value = serde_yaml::from_str(&contents)?;
+
+    apply_overrides(&mut value, overrides);
+
     let config: Config = serde_yaml::from_value(value)?;
     Ok(config)
 }

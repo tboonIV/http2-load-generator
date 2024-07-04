@@ -26,13 +26,17 @@ struct Args {
 
     #[arg(short, long, default_value_t = 1)]
     count: u8,
+
+    #[arg(short, long)]
+    overrides: Vec<String>,
 }
 
 #[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
+
     // Read config
-    let config = read_yaml_file(&args.config)?;
+    let config = read_yaml_file(&args.config, args.overrides)?;
 
     // Configure Logging
     env_logger::Builder::new()
