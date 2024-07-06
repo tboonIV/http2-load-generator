@@ -235,20 +235,30 @@ impl<'a> Scenario<'a> {
     }
 
     pub fn assert_response(&self, response: &HttpResponse) -> bool {
+        match self.assert_response_impl(response) {
+            Ok(_) => true,
+            Err(err) => {
+                if self.assert_panic {
+                    panic!("{}", err);
+                } else {
+                    log::error!("{}", err);
+                }
+                false
+            }
+        }
+    }
+
+    pub fn assert_response_impl(
+        &self,
+        response: &HttpResponse,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Assert Status
         if self.response.status != response.status {
-            log::error!(
+            return Err(format!(
                 "Expected status code: {:?}, got: {:?}",
-                self.response.status,
-                response.status
-            );
-            if self.assert_panic {
-                panic!(
-                    "Expected status code: {:?}, got: {:?}",
-                    self.response.status, response.status
-                );
-            }
-            return false;
+                self.response.status, response.status
+            )
+            .into());
         }
 
         // Assert Headers
@@ -264,37 +274,25 @@ impl<'a> Scenario<'a> {
                 match value {
                     HeadersValueAssert::NotNull => {
                         if header.is_none() {
-                            log::error!("Header '{}' is expected but not found", h.name);
-                            if self.assert_panic {
-                                panic!("Header '{}' is expected but not found", h.name);
-                            }
-                            return false;
+                            return Err(
+                                format!("Header '{}' is expected but not found", h.name).into()
+                            );
                         }
                     }
                     HeadersValueAssert::Equal(v) => {
                         if header.is_none() {
-                            log::error!("Header '{}' is expected but not found", h.name);
-                            if self.assert_panic {
-                                panic!("Header '{}' is expected but not found", h.name);
-                            }
-                            return false;
+                            return Err(
+                                format!("Header '{}' is expected but not found", h.name).into()
+                            );
                         }
                         if header.unwrap() != v {
-                            log::error!(
+                            return Err(format!(
                                 "Header '{}' is expected to be '{}' but got '{}'",
                                 h.name,
                                 v,
                                 header.unwrap()
-                            );
-                            if self.assert_panic {
-                                panic!(
-                                    "Header '{}' is expected to be '{}' but got '{}'",
-                                    h.name,
-                                    v,
-                                    header.unwrap()
-                                );
-                            }
-                            return false;
+                            )
+                            .into());
                         }
                     }
                 }
@@ -307,11 +305,7 @@ impl<'a> Scenario<'a> {
 
             let body = response.body.as_ref();
             if body == None {
-                log::error!("Body is expected but not found");
-                if self.assert_panic {
-                    panic!("Body is expected but not found");
-                }
-                return false;
+                return Err("Body is expected but not found".into());
             }
             let body = body.unwrap();
 
@@ -323,11 +317,9 @@ impl<'a> Scenario<'a> {
                 match value_assert {
                     BodyValueAssert::NotNull => {
                         if value.is_none() {
-                            log::error!("Body '{}' is expected but not found", b.name);
-                            if self.assert_panic {
-                                panic!("Body '{}' is expected but not found", b.name);
-                            }
-                            return false;
+                            return Err(
+                                format!("Body '{}' is expected but not found", b.name).into()
+                            );
                         }
                     }
                     BodyValueAssert::Equal(_v) => todo!(),
@@ -335,7 +327,7 @@ impl<'a> Scenario<'a> {
             }
         }
 
-        return true;
+        return Ok(());
     }
 
     pub fn update_variables(&self, response: &HttpResponse) -> Vec<Variable> {
