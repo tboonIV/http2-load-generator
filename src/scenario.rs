@@ -235,7 +235,7 @@ impl<'a> Scenario<'a> {
     }
 
     pub fn assert_response(&self, response: &HttpResponse) -> bool {
-        match self.assert_response_impl(response) {
+        match self.check_response(response) {
             Ok(_) => true,
             Err(err) => {
                 if self.assert_panic {
@@ -248,11 +248,8 @@ impl<'a> Scenario<'a> {
         }
     }
 
-    pub fn assert_response_impl(
-        &self,
-        response: &HttpResponse,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        // Assert Status
+    fn check_response(&self, response: &HttpResponse) -> Result<(), Box<dyn std::error::Error>> {
+        // Check Status
         if self.response.status != response.status {
             return Err(format!(
                 "Expected status code: {:?}, got: {:?}",
@@ -261,7 +258,7 @@ impl<'a> Scenario<'a> {
             .into());
         }
 
-        // Assert Headers
+        // Check Headers
         if self.response.headers.is_some() {
             let headers = self.response.headers.as_ref().unwrap();
             for h in headers {
@@ -299,7 +296,7 @@ impl<'a> Scenario<'a> {
             }
         }
 
-        // Assert Body
+        // Check Body
         if self.response.body.is_some() {
             let body_assert = self.response.body.as_ref().unwrap();
 
@@ -518,6 +515,98 @@ mod tests {
 
         assert_eq!(true, scenario.assert_response(&response1));
         assert_eq!(false, scenario.assert_response(&response2));
+    }
+
+    #[test]
+    fn test_scenario_check_response_with_body() {
+        let global = Global { variables: vec![] };
+        let scenario = Scenario {
+            name: "Scenario_1".into(),
+            base_url: "http://localhost:8080".into(),
+            global: &global,
+            request: Request {
+                uri: "/endpoint".into(),
+                method: Method::GET,
+                headers: None,
+                body: None,
+                timeout: Duration::from_secs(3),
+            },
+            response: Response {
+                status: StatusCode::OK,
+                headers: Some(vec![HeadersAssert {
+                    name: "Content-Type".into(),
+                    value: HeadersValueAssert::NotNull,
+                }]),
+                body: Some(vec![BodyAssert {
+                    name: "Result".into(),
+                    value: BodyValueAssert::NotNull,
+                }]),
+            },
+            response_defines: vec![],
+            assert_panic: false,
+        };
+
+        // Missing content-type header
+        let response1 = HttpResponse {
+            status: StatusCode::OK,
+            headers: http::HeaderMap::new(),
+            body: None,
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        match scenario.check_response(&response1) {
+            Ok(_) => panic!("Expected error"),
+            Err(err) => assert_eq!(
+                "Header 'Content-Type' is expected but not found",
+                err.to_string()
+            ),
+        }
+
+        // Missing response body
+        let mut headers = http::HeaderMap::new();
+        headers.insert("Content-Type", "application/json".parse().unwrap());
+
+        let response2 = HttpResponse {
+            status: StatusCode::OK,
+            headers: headers.clone(),
+            body: None,
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        match scenario.check_response(&response2) {
+            Ok(_) => panic!("Expected error"),
+            Err(err) => assert_eq!("Body is expected but not found", err.to_string()),
+        }
+
+        // Missing field 'Result' in response body
+        let response3 = HttpResponse {
+            status: StatusCode::OK,
+            headers: headers.clone(),
+            body: Some(serde_json::from_str(r#"{"ObjectId": "0-1-2-3"}"#).unwrap()),
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        match scenario.check_response(&response3) {
+            Ok(_) => panic!("Expected error"),
+            Err(err) => assert_eq!("Body 'Result' is expected but not found", err.to_string()),
+        }
+
+        // All good
+        let response4 = HttpResponse {
+            status: StatusCode::OK,
+            headers: headers.clone(),
+            body: Some(serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap()),
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        match scenario.check_response(&response4) {
+            Ok(_) => {}
+            Err(err) => panic!("{}", err),
+        }
     }
 
     #[test]
