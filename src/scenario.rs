@@ -53,7 +53,8 @@ pub struct BodyAssert {
 #[serde(tag = "type", content = "value")]
 pub enum BodyValueAssert {
     NotNull,
-    Equal(String),
+    EqualString(String),
+    EqualNumber(i64),
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -311,15 +312,44 @@ impl<'a> Scenario<'a> {
                 let value_assert = b.value.clone();
                 let value = body.get(name_assert);
 
+                // value must not be optional at this point
+                if value.is_none() {
+                    return Err(format!("Body '{}' is expected but not found", b.name).into());
+                }
+
+                // TODO: nested json and array not supported yet
+                if value.unwrap().is_array() {
+                    return Err("Array in body is not supported yet".into());
+                }
+
+                if value.unwrap().is_object() {
+                    return Err("Nested json in body is not supported yet".into());
+                }
+
                 match value_assert {
-                    BodyValueAssert::NotNull => {
-                        if value.is_none() {
-                            return Err(
-                                format!("Body '{}' is expected but not found", b.name).into()
-                            );
+                    BodyValueAssert::NotNull => {}
+                    BodyValueAssert::EqualString(v) => {
+                        if value.unwrap().as_str().unwrap() != v {
+                            return Err(format!(
+                                "Body '{}' is expected to be '{}' but got '{}'",
+                                b.name,
+                                v,
+                                value.unwrap().as_str().unwrap()
+                            )
+                            .into());
                         }
                     }
-                    BodyValueAssert::Equal(_v) => todo!(),
+                    BodyValueAssert::EqualNumber(v) => {
+                        if value.unwrap().as_i64().unwrap() != v {
+                            return Err(format!(
+                                "Body '{}' is expected to be '{}' but got '{}'",
+                                b.name,
+                                v,
+                                value.unwrap().as_i64().unwrap()
+                            )
+                            .into());
+                        }
+                    }
                 }
             }
         }
@@ -539,7 +569,7 @@ mod tests {
                 }]),
                 body: Some(vec![BodyAssert {
                     name: "Result".into(),
-                    value: BodyValueAssert::NotNull,
+                    value: BodyValueAssert::EqualNumber(0),
                 }]),
             },
             response_defines: vec![],
@@ -592,6 +622,23 @@ mod tests {
         match scenario.check_response(&response3) {
             Ok(_) => panic!("Expected error"),
             Err(err) => assert_eq!("Body 'Result' is expected but not found", err.to_string()),
+        }
+
+        // Mismatch value in response body
+        let response4 = HttpResponse {
+            status: StatusCode::OK,
+            headers: headers.clone(),
+            body: Some(serde_json::from_str(r#"{"Result": 1, "ObjectId": "0-1-2-3"}"#).unwrap()),
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        match scenario.check_response(&response4) {
+            Ok(_) => panic!("Expected error"),
+            Err(err) => assert_eq!(
+                "Body 'Result' is expected to be '0' but got '1'",
+                err.to_string()
+            ),
         }
 
         // All good
