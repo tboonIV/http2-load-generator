@@ -54,7 +54,7 @@ pub struct BodyAssert {
 pub enum BodyValueAssert {
     NotNull,
     EqualString(String),
-    EqualNumber(i64),
+    EqualNumber(f64),
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -342,28 +342,46 @@ impl<'a> Scenario<'a> {
                     return Err("Error when parsing nested json in response body".into());
                 }
 
+                let value = value.unwrap();
+
                 match value_assert {
                     BodyValueAssert::NotNull => {}
                     BodyValueAssert::EqualString(v) => {
-                        if value.unwrap().as_str().unwrap() != v {
+                        if value.as_str().unwrap() != v {
                             return Err(format!(
                                 "Body '{}' is expected to be '{}' but got '{}'",
                                 b.name,
                                 v,
-                                value.unwrap().as_str().unwrap()
+                                value.as_str().unwrap()
                             )
                             .into());
                         }
                     }
                     BodyValueAssert::EqualNumber(v) => {
-                        if value.unwrap().as_i64().unwrap() != v {
-                            return Err(format!(
-                                "Body '{}' is expected to be '{}' but got '{}'",
-                                b.name,
-                                v,
-                                value.unwrap().as_i64().unwrap()
-                            )
-                            .into());
+                        if value.is_f64() {
+                            if value.as_f64().unwrap() != v {
+                                return Err(format!(
+                                    "Body '{}' is expected to be '{}' but got '{}'",
+                                    b.name,
+                                    v,
+                                    value.as_f64().unwrap()
+                                )
+                                .into());
+                            }
+                        } else if value.is_i64() {
+                            if value.as_i64().unwrap() as f64 != v {
+                                return Err(format!(
+                                    "Body '{}' is expected to be '{}' but got '{}'",
+                                    b.name,
+                                    v,
+                                    value.as_i64().unwrap()
+                                )
+                                .into());
+                            }
+                        } else {
+                            return Err(
+                                format!("Body '{}' is expected to be number", b.name).into()
+                            );
                         }
                     }
                 }
@@ -585,7 +603,7 @@ mod tests {
                 }]),
                 body: Some(vec![BodyAssert {
                     name: "Result".into(),
-                    value: BodyValueAssert::EqualNumber(0),
+                    value: BodyValueAssert::EqualNumber(0.0),
                 }]),
             },
             response_defines: vec![],
@@ -658,7 +676,7 @@ mod tests {
         }
 
         // All good
-        let response4 = HttpResponse {
+        let response = HttpResponse {
             status: StatusCode::OK,
             headers: headers.clone(),
             body: Some(serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap()),
@@ -666,7 +684,7 @@ mod tests {
             retry_count: 0,
         };
 
-        match scenario.check_response(&response4) {
+        match scenario.check_response(&response) {
             Ok(_) => {}
             Err(err) => panic!("{}", err),
         }
