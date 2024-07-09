@@ -308,22 +308,38 @@ impl<'a> Scenario<'a> {
             let body = body.unwrap();
 
             for b in body_assert {
-                let name_assert = b.name.clone();
-                let value_assert = b.value.clone();
-                let value = body.get(name_assert);
-
-                // value must not be optional at this point
-                if value.is_none() {
-                    return Err(format!("Body '{}' is expected but not found", b.name).into());
+                // Support nested json
+                let keys = b.name.split('.').collect::<Vec<&str>>();
+                let mut current = &mut body.clone(); // not sure how to get away without clone
+                for key in keys.iter().take(keys.len() - 1) {
+                    match current.get_mut(*key) {
+                        Some(value) => {
+                            current = value;
+                        }
+                        None => {
+                            return Err(format!(
+                                "Field '{}' is expected from body assert '{}' but not found",
+                                key, b.name
+                            )
+                            .into());
+                        }
+                    }
                 }
 
-                // TODO: nested json and array not supported yet
+                let name_assert = keys.last().unwrap();
+                let value_assert = b.value.clone();
+                let value = current.get(name_assert);
+
+                if value.is_none() {
+                    return Err(format!("Field '{}' is expected but not found", b.name).into());
+                }
+
                 if value.unwrap().is_array() {
-                    return Err("Array in body is not supported yet".into());
+                    return Err("Asserting array fields in response body is not supported".into());
                 }
 
                 if value.unwrap().is_object() {
-                    return Err("Nested json in body is not supported yet".into());
+                    return Err("Error when parsing nested json in response body".into());
                 }
 
                 match value_assert {
@@ -577,7 +593,7 @@ mod tests {
         };
 
         // Missing content-type header
-        let response1 = HttpResponse {
+        let response = HttpResponse {
             status: StatusCode::OK,
             headers: http::HeaderMap::new(),
             body: None,
@@ -585,7 +601,7 @@ mod tests {
             retry_count: 0,
         };
 
-        match scenario.check_response(&response1) {
+        match scenario.check_response(&response) {
             Ok(_) => panic!("Expected error"),
             Err(err) => assert_eq!(
                 "Header 'Content-Type' is expected but not found",
@@ -597,7 +613,7 @@ mod tests {
         let mut headers = http::HeaderMap::new();
         headers.insert("Content-Type", "application/json".parse().unwrap());
 
-        let response2 = HttpResponse {
+        let response = HttpResponse {
             status: StatusCode::OK,
             headers: headers.clone(),
             body: None,
@@ -605,13 +621,13 @@ mod tests {
             retry_count: 0,
         };
 
-        match scenario.check_response(&response2) {
+        match scenario.check_response(&response) {
             Ok(_) => panic!("Expected error"),
             Err(err) => assert_eq!("Body is expected but not found", err.to_string()),
         }
 
         // Missing field 'Result' in response body
-        let response3 = HttpResponse {
+        let response = HttpResponse {
             status: StatusCode::OK,
             headers: headers.clone(),
             body: Some(serde_json::from_str(r#"{"ObjectId": "0-1-2-3"}"#).unwrap()),
@@ -619,13 +635,13 @@ mod tests {
             retry_count: 0,
         };
 
-        match scenario.check_response(&response3) {
+        match scenario.check_response(&response) {
             Ok(_) => panic!("Expected error"),
-            Err(err) => assert_eq!("Body 'Result' is expected but not found", err.to_string()),
+            Err(err) => assert_eq!("Field 'Result' is expected but not found", err.to_string()),
         }
 
         // Mismatch value in response body
-        let response4 = HttpResponse {
+        let response = HttpResponse {
             status: StatusCode::OK,
             headers: headers.clone(),
             body: Some(serde_json::from_str(r#"{"Result": 1, "ObjectId": "0-1-2-3"}"#).unwrap()),
@@ -633,7 +649,7 @@ mod tests {
             retry_count: 0,
         };
 
-        match scenario.check_response(&response4) {
+        match scenario.check_response(&response) {
             Ok(_) => panic!("Expected error"),
             Err(err) => assert_eq!(
                 "Body 'Result' is expected to be '0' but got '1'",
@@ -651,6 +667,76 @@ mod tests {
         };
 
         match scenario.check_response(&response4) {
+            Ok(_) => {}
+            Err(err) => panic!("{}", err),
+        }
+    }
+
+    #[test]
+    fn test_scenario_check_response_with_nested_body() {
+        let global = Global { variables: vec![] };
+        let scenario = Scenario {
+            name: "Scenario_1".into(),
+            base_url: "http://localhost:8080".into(),
+            global: &global,
+            request: Request {
+                uri: "/endpoint".into(),
+                method: Method::GET,
+                headers: None,
+                body: None,
+                timeout: Duration::from_secs(3),
+            },
+            response: Response {
+                status: StatusCode::OK,
+                headers: None,
+                body: Some(vec![BodyAssert {
+                    name: "Foo.Bar".into(),
+                    value: BodyValueAssert::EqualString("Baz".into()),
+                }]),
+            },
+            response_defines: vec![],
+            assert_panic: false,
+        };
+
+        // Test Missing Field 'Foo'
+        let body = serde_json::json!({
+            "Result": 0,
+            "Bar": "Baz"
+        });
+
+        let response = HttpResponse {
+            status: StatusCode::OK,
+            headers: http::HeaderMap::new(),
+            body: Some(body),
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        match scenario.check_response(&response) {
+            Ok(_) => panic!("Expected error"),
+            Err(err) => assert_eq!(
+                "Field 'Foo' is expected from body assert 'Foo.Bar' but not found",
+                err.to_string()
+            ),
+        }
+
+        // ALl Good
+        let body = serde_json::json!({
+            "Result": 0,
+            "Foo": {
+                "Bar": "Baz"
+            }
+        });
+
+        let response = HttpResponse {
+            status: StatusCode::OK,
+            headers: http::HeaderMap::new(),
+            body: Some(body),
+            request_start: std::time::Instant::now(),
+            retry_count: 0,
+        };
+
+        match scenario.check_response(&response) {
             Ok(_) => {}
             Err(err) => panic!("{}", err),
         }
