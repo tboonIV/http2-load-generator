@@ -2,10 +2,9 @@ log_level: "Trace"
 parallel: 1
 runner:
   target_rps: 3
-  duration: 3s
+  duration: 1s
   batch_size: "Auto"
   # batch_size: 2
-  # auto_throttle: true
   base_url: "http://localhost:8081"
   global:
     variables:
@@ -16,13 +15,19 @@ runner:
           start: 0
           threshold: 100000
           step: 1
+      - name: IMSI
+        value: 1000000
+        function:
+          type: Increment
+          start: 1000000
+          threshold: 999999
+          step: 1
       - name: RANDOM
         value: 0
         function:
           type: Random
           min: 100
           max: 999
-  # delay_between_scenario: "500ms"
   scenarios:
     - name: chargingDataCreate
       request:
@@ -36,6 +41,7 @@ runner:
             "oneTimeEvent": true,
             "invocationSequenceNumber": ${COUNTER},
             "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "subscriberIdentifier": "imsi-${IMSI}",
             "nfConsumerIdentification": {
               "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
               "nFIPv4Address": "198.51.100.1",

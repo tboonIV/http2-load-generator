@@ -418,16 +418,26 @@ impl<'a> Scenario<'a> {
                 DefineFrom::Body => {
                     if let Some(body) = &response.body {
                         let value = jsonpath_lib::select(&body, &v.path).unwrap();
-                        let value = value.get(0).unwrap().as_str().unwrap();
+                        let value = value.get(0).unwrap();
+
                         log::debug!(
                             "Set local var from json field: '{}', name: '{}' value: '{}'",
                             v.path,
                             v.name,
-                            value
+                            value,
                         );
+
+                        let value = if value.is_f64() {
+                            Value::Int(value.as_f64().unwrap() as i32)
+                        } else if value.is_i64() {
+                            Value::Int(value.as_i64().unwrap() as i32)
+                        } else {
+                            Value::String(value.as_str().unwrap().to_string())
+                        };
+
                         let value = Variable {
                             name: v.name.clone(),
-                            value: Value::String(value.to_string()), // TODO also support Int
+                            value,
                             function: None,
                         };
                         values.push(value);

@@ -45,4 +45,5 @@ impl Variable {
 pub enum Value {
     String(String),
     Int(i32),
+    // TODO Support float
 }
