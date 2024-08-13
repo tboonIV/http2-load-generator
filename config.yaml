@@ -15,13 +15,6 @@ runner:
           start: 0
           threshold: 100000
           step: 1
-      - name: IMSI
-        value: 1000000
-        function:
-          type: Increment
-          start: 1000000
-          threshold: 999999
-          step: 1
       - name: RANDOM
         value: 0
         function:
@@ -30,6 +23,20 @@ runner:
           max: 999
   scenarios:
     - name: chargingDataCreate
+      pre-script:
+        variables:
+          # let Now = Now()
+          - name: Now
+            value: 0
+            function:
+              type: Now 
+          # let Random = Random()
+          - name: Random
+            value: 0
+            function:
+              type: Random
+              min: 100
+              max: 999
       request:
         method: POST
         path: "/nchf-convergedcharging/v2/chargingdata"
@@ -78,6 +85,25 @@ runner:
               delimiter: "/"
               index:
                 type: Last
+      post-script:
+        variables:
+          # let Imsi += 1
+          - name: Imsi 
+            value: 0
+            function:
+              type: Increment
+              start: 1000000
+              threshold: 999999
+              step: 1
+          # let Counter += 1
+          - name: Counter
+            value: 0
+            function:
+              type: Increment
+              start: 0
+              threshold: 100000
+              step: 1
+
     - name: chargingDataUpdate
       request:
         method: POST

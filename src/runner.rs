@@ -111,6 +111,8 @@ impl<'a> Runner<'a> {
 
             for _ in 0..param.batch_size {
                 let scenario = &mut self.first_scenario;
+                log::debug!("Running scenario #0: {}", scenario.name);
+
                 let http_request = scenario.next_request(vec![]);
 
                 let ctx = EventContext {
@@ -157,6 +159,8 @@ impl<'a> Runner<'a> {
 
                     // Check if there are subsequent scenarios
                     if let Some(scenario) = self.subsequent_scenarios.get_mut(scenario_id) {
+                        log::debug!("Running scenario #{}: {}", scenario_id + 1, scenario.name);
+
                         let http_request = scenario.next_request(variables.clone());
 
                         eventloop_tx

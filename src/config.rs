@@ -78,6 +78,15 @@ pub struct Scenario {
     pub name: String,
     pub request: Request,
     pub response: Response,
+    #[serde(rename = "pre-script")]
+    pub pre_script: Option<Script>,
+    #[serde(rename = "post-script")]
+    pub post_script: Option<Script>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Script {
+    pub variables: Vec<variable::Variable>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

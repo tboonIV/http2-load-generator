@@ -33,6 +33,11 @@ impl Variable {
                     let value = f.apply(value);
                     Value::String(value)
                 }
+                function::Function::Now(_f) => {
+                    todo!()
+                    // let value = f.apply();
+                    // Value::String(value)
+                }
             };
 
             self.value = value;

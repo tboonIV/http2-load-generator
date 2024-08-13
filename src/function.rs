@@ -8,6 +8,7 @@ pub enum Function {
     Split(SplitFunction),
     Increment(IncrementFunction),
     Random(RandomFunction),
+    Now(NowFunction),
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -77,6 +78,16 @@ impl RandomFunction {
         value
     }
 }
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct NowFunction {}
+
+// impl NowFunction {
+//     pub fn apply(&self) -> String {
+//         // let now = chrono::Utc::now();
+//         // now.to_rfc3339()
+//     }
+// }
 
 #[cfg(test)]
 
