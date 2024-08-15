@@ -3,6 +3,7 @@ mod function;
 mod http_api;
 mod runner;
 mod scenario;
+mod script;
 mod scripting;
 mod stats;
 mod variable;

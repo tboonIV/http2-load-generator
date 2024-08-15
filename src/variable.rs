@@ -52,3 +52,19 @@ pub enum Value {
     Int(i32),
     // TODO Support float
 }
+
+impl Value {
+    pub fn as_string(&self) -> String {
+        match self {
+            Value::String(ref v) => v.clone(),
+            Value::Int(v) => v.to_string(),
+        }
+    }
+
+    pub fn as_int(&self) -> i32 {
+        match self {
+            Value::String(ref v) => v.parse::<i32>().unwrap(),
+            Value::Int(v) => *v,
+        }
+    }
+}

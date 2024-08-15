@@ -2,6 +2,7 @@ use crate::config;
 use crate::function;
 use crate::http_api::HttpRequest;
 use crate::http_api::HttpResponse;
+use crate::script;
 use crate::variable::Value;
 use crate::variable::Variable;
 use http::Method;
@@ -80,6 +81,8 @@ pub struct Scenario<'a> {
     pub response: Response,
     pub response_defines: Vec<ResponseDefine>,
     pub assert_panic: bool,
+    pub post_script: Option<script::Script>,
+    pub pre_script: Option<script::Script>,
 }
 
 impl<'a> Scenario<'a> {
@@ -151,6 +154,8 @@ impl<'a> Scenario<'a> {
             response,
             response_defines,
             assert_panic: true,
+            post_script: None,
+            pre_script: None,
         }
     }
 
@@ -518,6 +523,8 @@ mod tests {
             },
             response_defines: vec![],
             assert_panic: false,
+            post_script: None,
+            pre_script: None,
         };
 
         // First request
@@ -569,6 +576,8 @@ mod tests {
             },
             response_defines: vec![],
             assert_panic: false,
+            post_script: None,
+            pre_script: None,
         };
 
         let response1 = HttpResponse {
@@ -618,6 +627,8 @@ mod tests {
             },
             response_defines: vec![],
             assert_panic: false,
+            post_script: None,
+            pre_script: None,
         };
 
         // Missing content-type header
@@ -724,6 +735,8 @@ mod tests {
             },
             response_defines: vec![],
             assert_panic: false,
+            post_script: None,
+            pre_script: None,
         };
 
         // Test Missing Field 'Foo'
@@ -798,6 +811,8 @@ mod tests {
             },
             response_defines,
             assert_panic: false,
+            post_script: None,
+            pre_script: None,
         };
 
         scenario.update_variables(&HttpResponse {
