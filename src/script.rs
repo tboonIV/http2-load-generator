@@ -1,8 +1,6 @@
-// TODO REMOVE ME
-#![allow(dead_code)]
-
 use crate::function;
 use crate::variable::Value;
+use crate::variable::Variable;
 
 #[derive(Debug)]
 pub struct ScriptError(String);
@@ -14,6 +12,7 @@ pub struct ScriptVariable {
 
 impl ScriptVariable {
     pub fn exec(&self, args: Vec<Value>) -> Result<Value, ScriptError> {
+        log::debug!("executing script variable: {}", self.name);
         match &self.function {
             function::Function::Increment(f) => {
                 if args.len() == 1 {
@@ -22,6 +21,7 @@ impl ScriptVariable {
                         Value::String(ref v) => v.parse::<i32>().unwrap(),
                     };
                     let value = f.apply(arg0);
+                    log::debug!("value: {}", value);
                     Ok(Value::Int(value))
                 } else {
                     return Err(ScriptError("Expected 1 argument".into()));
@@ -57,7 +57,7 @@ impl ScriptVariable {
                     Ok(Value::String(value))
                 } else {
                     return Err(ScriptError("Expected 0 or 1 argument".into()));
-                }
+                };
             }
         }
     }
@@ -68,11 +68,28 @@ pub struct Script {
     pub variables: Vec<ScriptVariable>,
 }
 
-// impl Script {
-//     pub fn values(&self) -> Vec<Value> {
-//         self.variables.iter().map(|v| v.value().clone()).collect()
-//     }
-// }
+impl Script {
+    pub fn exec(&self) -> Vec<Variable> {
+        let mut variables = vec![];
+        for v in &self.variables {
+            // TODO some script requires arguments
+            // TODO remove hardcode
+            let args = if v.name == "imsi" {
+                vec![Value::Int(100000)]
+            } else {
+                vec![]
+            };
+
+            let value = v.exec(args).unwrap();
+            variables.push(Variable {
+                name: v.name.clone(),
+                value,
+                function: None,
+            });
+        }
+        variables
+    }
+}
 
 #[cfg(test)]
 mod tests {

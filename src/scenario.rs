@@ -3,6 +3,7 @@ use crate::function;
 use crate::http_api::HttpRequest;
 use crate::http_api::HttpResponse;
 use crate::script;
+use crate::script::ScriptVariable;
 use crate::variable::Value;
 use crate::variable::Variable;
 use http::Method;
@@ -81,8 +82,8 @@ pub struct Scenario<'a> {
     pub response: Response,
     pub response_defines: Vec<ResponseDefine>,
     pub assert_panic: bool,
-    pub post_script: Option<script::Script>,
     pub pre_script: Option<script::Script>,
+    pub post_script: Option<script::Script>,
 }
 
 impl<'a> Scenario<'a> {
@@ -146,6 +147,27 @@ impl<'a> Scenario<'a> {
             body: config.response.assert.body.clone(),
         };
 
+        // Pre Script
+        let pre_script = match &config.pre_script {
+            Some(script) => {
+                let mut script_vars = vec![];
+                for v in &script.variables {
+                    let variable = v.clone();
+                    script_vars.push(ScriptVariable {
+                        name: variable.name.clone(),
+                        function: variable.function.unwrap(),
+                    });
+                }
+                Some(script::Script {
+                    variables: script_vars,
+                })
+            }
+            None => None,
+        };
+
+        // Post Script
+        // TODO
+
         Scenario {
             name: config.name.clone(),
             base_url: base_url.into(),
@@ -154,8 +176,8 @@ impl<'a> Scenario<'a> {
             response,
             response_defines,
             assert_panic: true,
+            pre_script,
             post_script: None,
-            pre_script: None,
         }
     }
 
@@ -453,9 +475,26 @@ impl<'a> Scenario<'a> {
 
         values
     }
+
+    pub fn run_pre_script(&self) -> Vec<Variable> {
+        if let Some(script) = &self.pre_script {
+            script.exec()
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn run_post_script(&self) -> Vec<Variable> {
+        if let Some(script) = &self.post_script {
+            script.exec()
+        } else {
+            vec![]
+        }
+    }
 }
 
 pub struct Global {
+    // TODO: Change to HashMap
     variables: Vec<Arc<Mutex<Variable>>>,
 }
 
@@ -469,6 +508,16 @@ impl Global {
         }
 
         Global { variables }
+    }
+
+    pub fn get_variable_value(&self, variable_name: &str) -> Option<Value> {
+        for v in &self.variables {
+            let variable = v.lock().unwrap();
+            if variable.name == variable_name {
+                return Some(variable.value.clone());
+            }
+        }
+        None
     }
 }
 

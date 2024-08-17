@@ -21,22 +21,37 @@ runner:
           type: Random
           min: 100
           max: 999
+      - name: IMSI
+        value: 100000
+        function:
+          type: Increment
+          start: 100000
+          threshold: 999999
+          step: 1
   scenarios:
     - name: chargingDataCreate
       pre-script:
         variables:
-          # let Now = Now()
-          - name: Now
+          # let now = Now()
+          - name: now
             value: 0
             function:
               type: Now 
-          # let Random = Random()
-          - name: Random
+          # let random = Random()
+          - name: random
             value: 0
             function:
               type: Random
               min: 100
               max: 999
+          # let imsi = IMSI + 1
+          - name: imsi
+            value: IMSI
+            function:
+              type: Increment
+              start: 100000
+              threshold: 999999
+              step: 1
       request:
         method: POST
         path: "/nchf-convergedcharging/v2/chargingdata"
@@ -48,7 +63,7 @@ runner:
             "oneTimeEvent": true,
             "invocationSequenceNumber": ${COUNTER},
             "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
-            "subscriberIdentifier": "imsi-${IMSI}",
+            "subscriberIdentifier": "imsi-${imsi}",
             "nfConsumerIdentification": {
               "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
               "nFIPv4Address": "198.51.100.1",
@@ -114,6 +129,7 @@ runner:
           {
             "invocationSequenceNumber": ${COUNTER},
             "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "subscriberIdentifier": "imsi-${imsi}",
             "nfConsumerIdentification": {
               "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
               "nFIPv4Address": "198.51.100.1",
@@ -139,6 +155,7 @@ runner:
           {
             "invocationSequenceNumber": ${COUNTER},
             "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "subscriberIdentifier": "imsi-${imsi}",
             "nfConsumerIdentification": {
               "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
               "nFIPv4Address": "198.51.100.1",

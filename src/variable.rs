@@ -6,6 +6,7 @@ use serde::Serialize;
 pub struct Variable {
     pub name: String,
     pub value: Value,
+    // TODO maybe remove function from variable
     pub function: Option<function::Function>,
 }
 
