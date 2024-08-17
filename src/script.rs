@@ -4,42 +4,59 @@
 use crate::function;
 use crate::variable::Value;
 
+#[derive(Debug)]
+pub struct ScriptError(String);
+
 pub struct ScriptVariable {
     pub name: String,
     pub function: function::Function,
 }
 
 impl ScriptVariable {
-    pub fn exec(&self, args: Vec<Value>) -> Value {
+    pub fn exec(&self, args: Vec<Value>) -> Result<Value, ScriptError> {
         match &self.function {
             function::Function::Increment(f) => {
-                let arg0 = match args[10] {
-                    Value::Int(v) => v,
-                    Value::String(ref v) => v.parse::<i32>().unwrap(),
-                };
-                let value = f.apply(arg0);
-                Value::Int(value)
+                if args.len() == 1 {
+                    let arg0 = match args[0] {
+                        Value::Int(v) => v,
+                        Value::String(ref v) => v.parse::<i32>().unwrap(),
+                    };
+                    let value = f.apply(arg0);
+                    Ok(Value::Int(value))
+                } else {
+                    return Err(ScriptError("Expected 1 argument".into()));
+                }
             }
             function::Function::Split(f) => {
-                let arg0 = match args[0] {
-                    Value::Int(v) => v.to_string(),
-                    Value::String(ref v) => v.to_string(),
-                };
-                let value = f.apply(arg0);
-                Value::String(value)
+                if args.len() == 1 {
+                    let arg0 = match args[0] {
+                        Value::Int(v) => v.to_string(),
+                        Value::String(ref v) => v.to_string(),
+                    };
+                    let value = f.apply(arg0);
+                    Ok(Value::String(value))
+                } else {
+                    return Err(ScriptError("Expected 1 argument".into()));
+                }
             }
             function::Function::Random(f) => {
-                let value = f.apply();
-                Value::Int(value)
+                if args.len() == 0 {
+                    let value = f.apply();
+                    Ok(Value::Int(value))
+                } else {
+                    return Err(ScriptError("Expected 0 arguments".into()));
+                }
             }
             function::Function::Now(f) => {
-                return if args.len() > 0 {
+                return if args.len() == 1 {
                     let arg0 = args[0].as_string();
                     let value = f.apply(Some(arg0));
-                    Value::String(value)
-                } else {
+                    Ok(Value::String(value))
+                } else if args.len() == 0 {
                     let value = f.apply(None);
-                    Value::String(value)
+                    Ok(Value::String(value))
+                } else {
+                    return Err(ScriptError("Expected 0 or 1 argument".into()));
                 }
             }
         }
@@ -61,33 +78,35 @@ pub struct Script {
 mod tests {
     use super::*;
 
+    // let now = Now()
     #[test]
     fn test_script_now() {
-        // let now = Now()
         let now = ScriptVariable {
             name: "now".to_string(),
             function: function::Function::Now(function::NowFunction {}),
         };
-        let value = now.exec(vec![Value::String("%Y-%m-%d".to_string())]);
+        let value = now
+            .exec(vec![Value::String("%Y-%m-%d".to_string())])
+            .unwrap();
         let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
         assert!(value.as_string().len() > 0);
         assert!(value.as_string().starts_with(&today));
     }
 
+    // let random = Random(1, 10)
     #[test]
     fn test_script_random() {
-        // let random = Random(1, 10)
         let random = ScriptVariable {
             name: "random".to_string(),
             function: function::Function::Random(function::RandomFunction { min: 1, max: 10 }),
         };
-        let value = random.exec(vec![]).as_int();
+        let value = random.exec(vec![]).unwrap().as_int();
         assert!(value >= 1 && value <= 10);
     }
 
+    // let counter = 5 + 1
     #[test]
     fn test_script_increment() {
-        // let counter = 5 + 1
         let counter = ScriptVariable {
             name: "counter".to_string(),
             function: function::Function::Increment(function::IncrementFunction {
@@ -96,13 +115,13 @@ mod tests {
                 threshold: 10,
             }),
         };
-        let value = counter.exec(vec![Value::Int(5)]).as_int();
+        let value = counter.exec(vec![Value::Int(5)]).unwrap().as_int();
         assert_eq!(value, 6);
     }
 
+    // let imsi = Split(":", 1)
     #[test]
     fn test_script_split() {
-        // let imsi = Split(":", 1)
         let imsi = ScriptVariable {
             name: "imsi".to_string(),
             function: function::Function::Split(function::SplitFunction {
@@ -112,6 +131,7 @@ mod tests {
         };
         let value = imsi
             .exec(vec![Value::String("123:456".to_string())])
+            .unwrap()
             .as_string();
         assert_eq!(value, "456".to_string());
     }
