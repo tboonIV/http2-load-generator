@@ -82,12 +82,16 @@ impl RandomFunction {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct NowFunction {}
 
-// impl NowFunction {
-//     pub fn apply(&self) -> String {
-//         // let now = chrono::Utc::now();
-//         // now.to_rfc3339()
-//     }
-// }
+impl NowFunction {
+    pub fn apply(&self, format: Option<String>) -> String {
+        let now = chrono::Utc::now();
+        return if let Some(format) = format {
+            return now.format(&format).to_string();
+        } else {
+            now.to_rfc3339()
+        };
+    }
+}
 
 #[cfg(test)]
 

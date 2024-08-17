@@ -13,15 +13,11 @@ impl ScriptVariable {
     pub fn exec(&self, args: Vec<Value>) -> Value {
         match &self.function {
             function::Function::Increment(f) => {
-                let arg0 = match args[0] {
+                let arg0 = match args[10] {
                     Value::Int(v) => v,
                     Value::String(ref v) => v.parse::<i32>().unwrap(),
                 };
                 let value = f.apply(arg0);
-                Value::Int(value)
-            }
-            function::Function::Random(f) => {
-                let value = f.apply();
                 Value::Int(value)
             }
             function::Function::Split(f) => {
@@ -32,10 +28,19 @@ impl ScriptVariable {
                 let value = f.apply(arg0);
                 Value::String(value)
             }
-            function::Function::Now(_f) => {
-                todo!()
-                // let value = f.apply();
-                // Value::String(value)
+            function::Function::Random(f) => {
+                let value = f.apply();
+                Value::Int(value)
+            }
+            function::Function::Now(f) => {
+                return if args.len() > 0 {
+                    let arg0 = args[0].as_string();
+                    let value = f.apply(Some(arg0));
+                    Value::String(value)
+                } else {
+                    let value = f.apply(None);
+                    Value::String(value)
+                }
             }
         }
     }
@@ -56,17 +61,18 @@ pub struct Script {
 mod tests {
     use super::*;
 
-    // TODO
-    // #[test]
-    // fn test_script_now() {
-    //     // let now = Now()
-    //     let now = ScriptVariable {
-    //         name: "now".to_string(),
-    //         function: function::Function::Now(function::NowFunction {}),
-    //     };
-    //     let value = now.value();
-    //     assert!(value.as_string().len() > 0);
-    // }
+    #[test]
+    fn test_script_now() {
+        // let now = Now()
+        let now = ScriptVariable {
+            name: "now".to_string(),
+            function: function::Function::Now(function::NowFunction {}),
+        };
+        let value = now.exec(vec![Value::String("%Y-%m-%d".to_string())]);
+        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
+        assert!(value.as_string().len() > 0);
+        assert!(value.as_string().starts_with(&today));
+    }
 
     #[test]
     fn test_script_random() {
@@ -111,7 +117,6 @@ mod tests {
     }
 
     // TODO
-    // let imsi = Split(":", 1)
     // let counter = 0
     // let counter++
     // let c1 = counter
