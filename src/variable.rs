@@ -38,6 +38,9 @@ impl Variable {
                     let value = f.apply(None);
                     Value::String(value)
                 }
+                function::Function::Plus(_f) => {
+                    todo!()
+                }
             };
 
             self.value = value;

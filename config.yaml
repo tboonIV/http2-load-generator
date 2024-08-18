@@ -48,10 +48,10 @@ runner:
           - name: imsi
             value: IMSI
             function:
-              type: Increment
-              start: 100000
-              threshold: 999999
-              step: 1
+              type: Plus
+            args:
+              - 100000
+              - 1
       request:
         method: POST
         path: "/nchf-convergedcharging/v2/chargingdata"

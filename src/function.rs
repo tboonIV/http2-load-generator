@@ -6,9 +6,10 @@ use serde::Serialize;
 #[serde(tag = "type")]
 pub enum Function {
     Split(SplitFunction),
-    Increment(IncrementFunction),
     Random(RandomFunction),
     Now(NowFunction),
+    Increment(IncrementFunction),
+    Plus(PlusFunction),
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -90,6 +91,15 @@ impl NowFunction {
         } else {
             now.to_rfc3339()
         };
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct PlusFunction {}
+
+impl PlusFunction {
+    pub fn apply(&self, a: i32, b: i32) -> i32 {
+        a + b
     }
 }
 

@@ -16,27 +16,21 @@ impl ScriptVariable {
         match &self.function {
             function::Function::Increment(f) => {
                 if args.len() == 1 {
-                    let arg0 = match args[0] {
-                        Value::Int(v) => v,
-                        Value::String(ref v) => v.parse::<i32>().unwrap(),
-                    };
+                    let arg0 = args[0].as_int();
                     let value = f.apply(arg0);
                     log::debug!("value: {}", value);
                     Ok(Value::Int(value))
                 } else {
-                    return Err(ScriptError("Expected 1 argument".into()));
+                    return Err(ScriptError("Expects 1 argument".into()));
                 }
             }
             function::Function::Split(f) => {
                 if args.len() == 1 {
-                    let arg0 = match args[0] {
-                        Value::Int(v) => v.to_string(),
-                        Value::String(ref v) => v.to_string(),
-                    };
+                    let arg0 = args[0].as_string();
                     let value = f.apply(arg0);
                     Ok(Value::String(value))
                 } else {
-                    return Err(ScriptError("Expected 1 argument".into()));
+                    return Err(ScriptError("Expects 1 argument".into()));
                 }
             }
             function::Function::Random(f) => {
@@ -44,7 +38,7 @@ impl ScriptVariable {
                     let value = f.apply();
                     Ok(Value::Int(value))
                 } else {
-                    return Err(ScriptError("Expected 0 arguments".into()));
+                    return Err(ScriptError("Expects 0 arguments".into()));
                 }
             }
             function::Function::Now(f) => {
@@ -56,8 +50,18 @@ impl ScriptVariable {
                     let value = f.apply(None);
                     Ok(Value::String(value))
                 } else {
-                    return Err(ScriptError("Expected 0 or 1 argument".into()));
+                    return Err(ScriptError("Expects 0 or 1 argument".into()));
                 };
+            }
+            function::Function::Plus(f) => {
+                return if args.len() == 2 {
+                    let arg0 = args[0].as_int();
+                    let arg1 = args[1].as_int();
+                    let value = f.apply(arg0, arg1);
+                    Ok(Value::Int(value))
+                } else {
+                    return Err(ScriptError("Expects 2 arguments".into()));
+                }
             }
         }
     }
@@ -73,9 +77,10 @@ impl Script {
         let mut variables = vec![];
         for v in &self.variables {
             // TODO some script requires arguments
-            // TODO remove hardcode
             let args = if v.name == "imsi" {
-                vec![Value::Int(100000)]
+                // hardcode
+                // let imsi = IMSI + 1
+                vec![Value::Int(100000), Value::Int(1)]
             } else {
                 vec![]
             };
@@ -151,6 +156,20 @@ mod tests {
             .unwrap()
             .as_string();
         assert_eq!(value, "456".to_string());
+    }
+
+    // let imsi = 1 + 2
+    #[test]
+    fn test_script_plus() {
+        let imsi = ScriptVariable {
+            name: "imsi".to_string(),
+            function: function::Function::Plus(function::PlusFunction {}),
+        };
+        let value = imsi
+            .exec(vec![Value::Int(1), Value::Int(2)])
+            .unwrap()
+            .as_int();
+        assert_eq!(value, 3);
     }
 
     // TODO
