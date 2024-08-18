@@ -71,3 +71,9 @@ impl Value {
         }
     }
 }
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum Variable2 {
+    Variable(Variable),
+    Constant(Value),
+}

@@ -152,11 +152,19 @@ impl<'a> Scenario<'a> {
             Some(script) => {
                 let mut script_vars = vec![];
                 for v in &script.variables {
-                    let variable = v.clone();
-                    script_vars.push(ScriptVariable {
-                        name: variable.name.clone(),
-                        function: variable.function.unwrap(),
-                    });
+                    let s_var = ScriptVariable {
+                        name: v.name.clone(),
+                        function: v.function.clone(),
+                    };
+
+                    let mut s_args = vec![];
+                    if let Some(args) = &v.args {
+                        for arg in args {
+                            let s_arg = script::ScriptArgument::Constant(arg.clone());
+                            s_args.push(s_arg);
+                        }
+                        script_vars.push((s_var, s_args));
+                    }
                 }
                 Some(script::Script {
                     variables: script_vars,
@@ -477,6 +485,8 @@ impl<'a> Scenario<'a> {
     }
 
     pub fn run_pre_script(&self) -> Vec<Variable> {
+        // TODO get args
+        //
         if let Some(script) = &self.pre_script {
             script.exec()
         } else {

@@ -1,3 +1,4 @@
+use crate::function;
 use crate::scenario;
 use crate::variable;
 use serde::Deserialize;
@@ -86,7 +87,15 @@ pub struct Scenario {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Script {
-    pub variables: Vec<variable::Variable>,
+    pub variables: Vec<ScriptVariable>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ScriptVariable {
+    pub name: String,
+    pub function: function::Function,
+    // TODO support variable in args
+    pub args: Option<Vec<variable::Value>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

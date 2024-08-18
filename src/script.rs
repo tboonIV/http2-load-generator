@@ -5,6 +5,12 @@ use crate::variable::Variable;
 #[derive(Debug)]
 pub struct ScriptError(String);
 
+// #[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum ScriptArgument {
+    Variable(Variable),
+    Constant(Value),
+}
+
 pub struct ScriptVariable {
     pub name: String,
     pub function: function::Function,
@@ -69,21 +75,21 @@ impl ScriptVariable {
 
 // #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Script {
-    pub variables: Vec<ScriptVariable>,
+    pub variables: Vec<(ScriptVariable, Vec<ScriptArgument>)>,
 }
 
 impl Script {
     pub fn exec(&self) -> Vec<Variable> {
         let mut variables = vec![];
-        for v in &self.variables {
-            // TODO some script requires arguments
-            let args = if v.name == "imsi" {
-                // hardcode
-                // let imsi = IMSI + 1
-                vec![Value::Int(100000), Value::Int(1)]
-            } else {
-                vec![]
-            };
+        for (v, args) in &self.variables {
+            let args = args
+                .iter()
+                .map(|arg| match arg {
+                    // TODO support variable properly
+                    ScriptArgument::Variable(v) => v.value.clone(),
+                    ScriptArgument::Constant(v) => v.clone(),
+                })
+                .collect::<Vec<Value>>();
 
             let value = v.exec(args).unwrap();
             variables.push(Variable {

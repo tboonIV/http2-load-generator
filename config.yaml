@@ -50,8 +50,8 @@ runner:
             function:
               type: Plus
             args:
-              - 100000
-              - 1
+              - 200000
+              - 2
       request:
         method: POST
         path: "/nchf-convergedcharging/v2/chargingdata"
