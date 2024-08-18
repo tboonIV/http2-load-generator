@@ -85,7 +85,6 @@ impl Script {
             let args = args
                 .iter()
                 .map(|arg| match arg {
-                    // TODO support variable properly
                     ScriptArgument::Variable(v) => v.value.clone(),
                     ScriptArgument::Constant(v) => v.clone(),
                 })
@@ -178,9 +177,28 @@ mod tests {
         assert_eq!(value, 3);
     }
 
-    // TODO
-    // let counter = 0
-    // let counter++
-    // let c1 = counter
-    //
+    // let var1 = 10
+    // let var2 = var1 + 20
+    #[test]
+    fn test_script_exec() {
+        let arg0 = ScriptArgument::Variable(Variable {
+            name: "var1".to_string(),
+            value: Value::Int(10),
+            function: None,
+        });
+
+        let var1 = ScriptVariable {
+            name: "var2".to_string(),
+            function: function::Function::Plus(function::PlusFunction {}),
+        };
+
+        let arg1 = ScriptArgument::Constant(Value::Int(20));
+        let variables = vec![(var1, vec![arg0, arg1])];
+
+        let script = Script { variables };
+        let variables = script.exec();
+        assert_eq!(variables.len(), 1);
+        assert_eq!(variables[0].name, "var2".to_string());
+        assert_eq!(variables[0].value.as_int(), 30);
+    }
 }
