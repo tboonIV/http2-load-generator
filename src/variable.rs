@@ -70,4 +70,18 @@ impl Value {
             Value::Int(v) => *v,
         }
     }
+
+    pub fn is_string(&self) -> bool {
+        match self {
+            Value::String(_) => true,
+            Value::Int(_) => false,
+        }
+    }
+
+    // pub fn is_int(&self) -> bool {
+    //     match self {
+    //         Value::String(_) => false,
+    //         Value::Int(_) => true,
+    //     }
+    // }
 }

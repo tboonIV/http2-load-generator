@@ -79,13 +79,23 @@ pub struct Script {
 }
 
 impl Script {
-    pub fn exec(&self) -> Vec<Variable> {
+    pub fn exec(&self, new_variables: Vec<Variable>) -> Vec<Variable> {
         let mut variables = vec![];
         for (v, args) in &self.variables {
             let args = args
                 .iter()
                 .map(|arg| match arg {
-                    ScriptArgument::Variable(v) => v.value.clone(),
+                    ScriptArgument::Variable(v) => {
+                        // Check if the variable is in the new_variables
+                        let new_variable = new_variables.iter().find(|nv| nv.name == v.name);
+                        if let Some(nv) = new_variable {
+                            // If it is, use the new value
+                            nv.value.clone()
+                        } else {
+                            // Otherwise, use the old value
+                            v.value.clone()
+                        }
+                    }
                     ScriptArgument::Constant(v) => v.clone(),
                 })
                 .collect::<Vec<Value>>();
@@ -179,26 +189,44 @@ mod tests {
 
     // let var1 = 10
     // let var2 = var1 + 20
+    // let var1 = 100
+    // let var2 = var1 + 20
     #[test]
     fn test_script_exec() {
-        let arg0 = ScriptArgument::Variable(Variable {
+        // var1 = 10
+        let var1 = ScriptArgument::Variable(Variable {
             name: "var1".to_string(),
             value: Value::Int(10),
             function: None,
         });
 
-        let var1 = ScriptVariable {
+        let var2 = ScriptVariable {
             name: "var2".to_string(),
             function: function::Function::Plus(function::PlusFunction {}),
         };
 
-        let arg1 = ScriptArgument::Constant(Value::Int(20));
-        let variables = vec![(var1, vec![arg0, arg1])];
+        let const20 = ScriptArgument::Constant(Value::Int(20));
 
-        let script = Script { variables };
-        let variables = script.exec();
+        let script = Script {
+            variables: vec![(var2, vec![var1, const20])],
+        };
+        // var2 = var1 + 20
+        let variables = script.exec(vec![]);
         assert_eq!(variables.len(), 1);
         assert_eq!(variables[0].name, "var2".to_string());
         assert_eq!(variables[0].value.as_int(), 30);
+
+        // var1 = 100
+        let var1 = Variable {
+            name: "var1".to_string(),
+            value: Value::Int(100),
+            function: None,
+        };
+
+        // var2 = var1 + 20
+        let variables = script.exec(vec![var1]);
+        assert_eq!(variables.len(), 1);
+        assert_eq!(variables[0].name, "var2".to_string());
+        assert_eq!(variables[0].value.as_int(), 120);
     }
 }

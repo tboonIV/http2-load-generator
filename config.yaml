@@ -2,7 +2,7 @@ log_level: "Trace"
 parallel: 1
 runner:
   target_rps: 3
-  duration: 1s
+  duration: 2s
   batch_size: "Auto"
   # batch_size: 2
   base_url: "http://localhost:8081"
@@ -22,10 +22,10 @@ runner:
           min: 100
           max: 999
       - name: IMSI
-        value: 100000
+        value: 110000
         function:
           type: Increment
-          start: 100000
+          start: 110000
           threshold: 999999
           step: 1
   scenarios:
@@ -50,8 +50,8 @@ runner:
             function:
               type: Plus
             args:
-              - 200000
-              - 2
+              - $IMSI
+              - 20
       request:
         method: POST
         path: "/nchf-convergedcharging/v2/chargingdata"
