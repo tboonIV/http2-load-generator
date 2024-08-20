@@ -18,7 +18,7 @@ pub struct ScriptVariable {
 
 impl ScriptVariable {
     pub fn exec(&self, args: Vec<Value>) -> Result<Value, ScriptError> {
-        log::debug!("executing script variable: {}", self.name);
+        // log::debug!("Executing script variable: {}", self.name);
         match &self.function {
             function::Function::Increment(f) => {
                 if args.len() == 1 {
@@ -101,6 +101,11 @@ impl Script {
                 .collect::<Vec<Value>>();
 
             let value = v.exec(args).unwrap();
+            log::debug!(
+                "Executed variable:{} new value: {}",
+                v.name.clone(),
+                value.as_string()
+            );
             variables.push(Variable {
                 name: v.name.clone(),
                 value,

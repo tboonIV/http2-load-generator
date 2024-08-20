@@ -46,6 +46,10 @@ impl Variable {
             self.value = value;
         }
     }
+
+    pub fn update_value(&mut self, value: Value) {
+        self.value = value;
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

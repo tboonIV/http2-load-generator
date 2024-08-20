@@ -184,8 +184,8 @@ impl<'a> Scenario<'a> {
                             let s_arg = script::ScriptArgument::Constant(value);
                             s_args.push(s_arg);
                         }
-                        script_vars.push((s_var, s_args));
                     }
+                    script_vars.push((s_var, s_args));
                 }
                 Some(script::Script {
                     variables: script_vars,
@@ -513,7 +513,7 @@ impl<'a> Scenario<'a> {
         let mut global_variables = vec![];
 
         for v in variables {
-            let mut variable = v.lock().unwrap();
+            let variable = v.lock().unwrap();
 
             // TODO need to refactor this
             // invoke function of all global variable
@@ -526,7 +526,22 @@ impl<'a> Scenario<'a> {
         // TODO pass global_variables to script.exec()
 
         if let Some(script) = &self.pre_script {
-            script.exec(global_variables)
+            let new_variables = script.exec(global_variables.clone());
+            for nv in new_variables.iter() {
+                // Find out which new varaibles is global variables
+                if let Some(v) = self
+                    .global
+                    .variables
+                    .iter()
+                    .find(|x| x.lock().unwrap().name == nv.name)
+                {
+                    // Update global variable value
+                    log::debug!("This is global var '{}'", nv.name);
+                    let mut variable = v.lock().unwrap();
+                    variable.update_value(nv.value.clone());
+                }
+            }
+            new_variables
         } else {
             vec![]
         }

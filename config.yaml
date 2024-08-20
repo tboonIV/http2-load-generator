@@ -15,38 +15,31 @@ runner:
           start: 0
           threshold: 100000
           step: 1
-      - name: RANDOM
-        value: 0
-        function:
-          type: Random
-          min: 100
-          max: 999
       - name: IMSI
         value: 110000
-        function:
-          type: Increment
-          start: 110000
-          threshold: 999999
-          step: 1
   scenarios:
     - name: chargingDataCreate
       pre-script:
         variables:
           # let now = Now()
           - name: now
-            value: 0
             function:
               type: Now 
           # let random = Random()
           - name: random
-            value: 0
             function:
               type: Random
               min: 100
               max: 999
+          # # let IMSI = IMSI + 1
+          - name: IMSI
+            function:
+              type: Plus
+            args:
+              - $IMSI
+              - 1
           # let imsi = IMSI + 1
           - name: imsi
-            value: IMSI
             function:
               type: Plus
             args:
@@ -70,8 +63,8 @@ runner:
               "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
               "nodeFunctionality": "SMF",
               "nFPLMNID": {
-                "mnc": "${RANDOM}",
-                "mcc": "${RANDOM}"
+                "mnc": "${random}",
+                "mcc": "${random}"
               }
             }
           }
@@ -136,8 +129,8 @@ runner:
               "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
               "nodeFunctionality": "SMF",
               "nFPLMNID": {
-                "mnc": "${RANDOM}",
-                "mcc": "${RANDOM}"
+                "mnc": "${random}",
+                "mcc": "${random}"
               }
             }
           }
@@ -162,8 +155,8 @@ runner:
               "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
               "nodeFunctionality": "SMF",
               "nFPLMNID": {
-                "mnc": "${RANDOM}",
-                "mcc": "${RANDOM}"
+                "mnc": "${random}",
+                "mcc": "${random}"
               }
             }
           }
