@@ -10,11 +10,6 @@ runner:
     variables:
       - name: COUNTER
         value: 0
-        function:
-          type: Increment
-          start: 0
-          threshold: 100000
-          step: 1
       - name: IMSI
         value: 110000
   scenarios:
@@ -38,13 +33,13 @@ runner:
             args:
               - $IMSI
               - 1
-          # let imsi = IMSI + 1
+          # let imsi = IMSI
           - name: imsi
             function:
               type: Plus
             args:
               - $IMSI
-              - 20
+              - 0
       request:
         method: POST
         path: "/nchf-convergedcharging/v2/chargingdata"
@@ -95,22 +90,13 @@ runner:
                 type: Last
       post-script:
         variables:
-          # let Imsi += 1
-          - name: Imsi 
-            value: 0
+          # # let COUNTER = COUNTER + 1
+          - name: COUNTER
             function:
-              type: Increment
-              start: 1000000
-              threshold: 999999
-              step: 1
-          # let Counter += 1
-          - name: Counter
-            value: 0
-            function:
-              type: Increment
-              start: 0
-              threshold: 100000
-              step: 1
+              type: Plus
+            args:
+              - $COUNTER
+              - 1
 
     - name: chargingDataUpdate
       request:
@@ -138,6 +124,15 @@ runner:
       response:
         assert:
           status: 200
+      post-script:
+        variables:
+          # # let COUNTER = COUNTER + 1
+          - name: COUNTER
+            function:
+              type: Plus
+            args:
+              - $COUNTER
+              - 1
     - name: chargingDataRelease
       request:
         method: POST
@@ -164,3 +159,12 @@ runner:
       response:
         assert:
           status: 204
+      post-script:
+        variables:
+          # # let COUNTER = COUNTER + 1
+          - name: COUNTER
+            function:
+              type: Plus
+            args:
+              - $COUNTER
+              - 1

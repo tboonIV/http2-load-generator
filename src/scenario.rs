@@ -195,7 +195,52 @@ impl<'a> Scenario<'a> {
         };
 
         // Post Script
-        // TODO
+        // TODO remove duplicate
+        let post_script = match &config.post_script {
+            Some(script) => {
+                let mut script_vars = vec![];
+                for v in &script.variables {
+                    let s_var = ScriptVariable {
+                        name: v.name.clone(),
+                        function: v.function.clone(),
+                    };
+
+                    let mut s_args = vec![];
+                    if let Some(args) = &v.args {
+                        for arg in args {
+                            let value = arg.clone();
+                            if value.is_string() {
+                                // check is arg is a variable
+                                let str = value.as_string();
+                                if str.starts_with('$') {
+                                    let var_name = &str[1..];
+                                    let var = global.get_variable_value(var_name);
+                                    if var.is_none() {
+                                        panic!("Variable '{}' not found", var_name);
+                                    }
+                                    let var = var.unwrap();
+                                    let s_arg = script::ScriptArgument::Variable(Variable {
+                                        name: var_name.into(),
+                                        value: var,
+                                        function: None,
+                                    });
+                                    s_args.push(s_arg);
+                                    continue;
+                                }
+                            }
+                            // arg is constant
+                            let s_arg = script::ScriptArgument::Constant(value);
+                            s_args.push(s_arg);
+                        }
+                    }
+                    script_vars.push((s_var, s_args));
+                }
+                Some(script::Script {
+                    variables: script_vars,
+                })
+            }
+            None => None,
+        };
 
         Scenario {
             name: config.name.clone(),
@@ -206,7 +251,7 @@ impl<'a> Scenario<'a> {
             response_defines,
             assert_panic: true,
             pre_script,
-            post_script: None,
+            post_script,
         }
     }
 
@@ -505,10 +550,9 @@ impl<'a> Scenario<'a> {
         values
     }
 
+    // TODO remove duplicate code from run_pre_script and run_post_script
+    //
     pub fn run_pre_script(&self) -> Vec<Variable> {
-        // TODO get args
-        // TODO need to pass global and local variables
-        //
         let variables = &self.global.variables;
         let mut global_variables = vec![];
 
@@ -523,9 +567,44 @@ impl<'a> Scenario<'a> {
             global_variables.push(variable.clone());
         }
 
-        // TODO pass global_variables to script.exec()
-
         if let Some(script) = &self.pre_script {
+            let new_variables = script.exec(global_variables.clone());
+            for nv in new_variables.iter() {
+                // Find out which new varaibles is global variables
+                if let Some(v) = self
+                    .global
+                    .variables
+                    .iter()
+                    .find(|x| x.lock().unwrap().name == nv.name)
+                {
+                    // Update global variable value
+                    log::debug!("This is global var '{}'", nv.name);
+                    let mut variable = v.lock().unwrap();
+                    variable.update_value(nv.value.clone());
+                }
+            }
+            new_variables
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn run_post_script(&self) -> Vec<Variable> {
+        let variables = &self.global.variables;
+        let mut global_variables = vec![];
+
+        for v in variables {
+            let variable = v.lock().unwrap();
+
+            // TODO need to refactor this
+            // invoke function of all global variable
+            // variable.apply();
+
+            // copy variables to global_variables
+            global_variables.push(variable.clone());
+        }
+
+        if let Some(script) = &self.post_script {
             let new_variables = script.exec(global_variables.clone());
             for nv in new_variables.iter() {
                 // Find out which new varaibles is global variables

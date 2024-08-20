@@ -63,6 +63,7 @@ impl ScriptVariable {
                 return if args.len() == 2 {
                     let arg0 = args[0].as_int();
                     let arg1 = args[1].as_int();
+                    log::debug!("Plus function: a + b = {} + {}", arg0, arg1);
                     let value = f.apply(arg0, arg1);
                     Ok(Value::Int(value))
                 } else {
@@ -80,20 +81,27 @@ pub struct Script {
 
 impl Script {
     pub fn exec(&self, new_variables: Vec<Variable>) -> Vec<Variable> {
-        let mut variables = vec![];
+        let mut variables: Vec<Variable> = vec![];
         for (v, args) in &self.variables {
             let args = args
                 .iter()
                 .map(|arg| match arg {
                     ScriptArgument::Variable(v) => {
-                        // Check if the variable is in the new_variables
-                        let new_variable = new_variables.iter().find(|nv| nv.name == v.name);
+                        // Check if the variable is in the previous executed variables
+                        let new_variable = variables.iter().find(|nv| nv.name == v.name);
                         if let Some(nv) = new_variable {
                             // If it is, use the new value
                             nv.value.clone()
                         } else {
-                            // Otherwise, use the old value
-                            v.value.clone()
+                            // Check if the variable is in the new_variables
+                            let new_variable = new_variables.iter().find(|nv| nv.name == v.name);
+                            if let Some(nv) = new_variable {
+                                // If it is, use the new value
+                                nv.value.clone()
+                            } else {
+                                // Otherwise, use the old value
+                                v.value.clone()
+                            }
                         }
                     }
                     ScriptArgument::Constant(v) => v.clone(),
