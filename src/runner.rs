@@ -113,11 +113,13 @@ impl<'a> Runner<'a> {
                 let scenario = &mut self.first_scenario;
                 log::debug!("Running scenario #0: {}", scenario.name);
 
-                let http_request = scenario.next_request(vec![]);
+                // Pre Script
+                let variables = scenario.run_pre_script(vec![]);
+                let http_request = scenario.next_request(variables.clone());
 
                 let ctx = EventContext {
                     scenario_id: 0,
-                    variables: vec![],
+                    variables,
                 };
                 eventloop_tx
                     .send(Event::SendMessage(ctx, http_request, resp_tx.clone()))
@@ -157,10 +159,21 @@ impl<'a> Runner<'a> {
                         variables.extend(new_variables);
                     }
 
+                    // Post scenario
+                    let new_variables = cur_scenario.run_post_script(variables.clone());
+                    variables.extend(new_variables);
+
                     // Check if there are subsequent scenarios
                     if let Some(scenario) = self.subsequent_scenarios.get_mut(scenario_id) {
                         log::debug!("Running scenario #{}: {}", scenario_id + 1, scenario.name);
 
+                        // Pre Script
+                        // let variables = scenario.run_pre_script();
+                        // TODO append new variables to existing variables
+
+                        // for variable in &variables {
+                        //     log::debug!("Variable: {:?}", variable);
+                        // }
                         let http_request = scenario.next_request(variables.clone());
 
                         eventloop_tx

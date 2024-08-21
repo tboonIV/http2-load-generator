@@ -1,11 +1,18 @@
-// TODO REMOVE ME
-#![allow(dead_code)]
-
 use crate::function;
 use crate::variable::Value;
+use crate::variable::Variable;
 
 #[derive(Debug)]
 pub struct ScriptError(String);
+
+// #[derive(Debug, Deserialize, Serialize, Clone)]
+pub enum ScriptArgument {
+    Variable(Variable),
+    Constant(Value),
+}
+
+// TODO
+// pub struct ScriptContext {}
 
 pub struct ScriptVariable {
     pub name: String,
@@ -14,29 +21,15 @@ pub struct ScriptVariable {
 
 impl ScriptVariable {
     pub fn exec(&self, args: Vec<Value>) -> Result<Value, ScriptError> {
+        // log::debug!("Executing script variable: {}", self.name);
         match &self.function {
-            function::Function::Increment(f) => {
-                if args.len() == 1 {
-                    let arg0 = match args[0] {
-                        Value::Int(v) => v,
-                        Value::String(ref v) => v.parse::<i32>().unwrap(),
-                    };
-                    let value = f.apply(arg0);
-                    Ok(Value::Int(value))
-                } else {
-                    return Err(ScriptError("Expected 1 argument".into()));
-                }
-            }
             function::Function::Split(f) => {
                 if args.len() == 1 {
-                    let arg0 = match args[0] {
-                        Value::Int(v) => v.to_string(),
-                        Value::String(ref v) => v.to_string(),
-                    };
+                    let arg0 = args[0].as_string();
                     let value = f.apply(arg0);
                     Ok(Value::String(value))
                 } else {
-                    return Err(ScriptError("Expected 1 argument".into()));
+                    return Err(ScriptError("Expects 1 argument".into()));
                 }
             }
             function::Function::Random(f) => {
@@ -44,7 +37,7 @@ impl ScriptVariable {
                     let value = f.apply();
                     Ok(Value::Int(value))
                 } else {
-                    return Err(ScriptError("Expected 0 arguments".into()));
+                    return Err(ScriptError("Expects 0 arguments".into()));
                 }
             }
             function::Function::Now(f) => {
@@ -56,7 +49,25 @@ impl ScriptVariable {
                     let value = f.apply(None);
                     Ok(Value::String(value))
                 } else {
-                    return Err(ScriptError("Expected 0 or 1 argument".into()));
+                    return Err(ScriptError("Expects 0 or 1 argument".into()));
+                };
+            }
+            function::Function::Plus(f) => {
+                return if args.len() == 2 {
+                    let arg0 = args[0].as_int();
+                    let arg1 = args[1].as_int();
+                    let value = f.apply(arg0, arg1);
+                    Ok(Value::Int(value))
+                } else {
+                    return Err(ScriptError("Expects 2 arguments".into()));
+                }
+            }
+            function::Function::Copy(f) => {
+                if args.len() == 1 {
+                    let value = f.apply(&args[0]);
+                    Ok(value)
+                } else {
+                    return Err(ScriptError("Expects 1 argument".into()));
                 }
             }
         }
@@ -65,14 +76,52 @@ impl ScriptVariable {
 
 // #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Script {
-    pub variables: Vec<ScriptVariable>,
+    pub variables: Vec<(ScriptVariable, Vec<ScriptArgument>)>,
 }
 
-// impl Script {
-//     pub fn values(&self) -> Vec<Value> {
-//         self.variables.iter().map(|v| v.value().clone()).collect()
-//     }
-// }
+impl Script {
+    pub fn exec(&self, new_variables: Vec<Variable>) -> Vec<Variable> {
+        let mut variables: Vec<Variable> = vec![];
+        for (v, args) in &self.variables {
+            let args = args
+                .iter()
+                .map(|arg| match arg {
+                    ScriptArgument::Variable(v) => {
+                        // Check if the variable is in the previous executed variables
+                        let new_variable = variables.iter().find(|nv| nv.name == v.name);
+                        if let Some(nv) = new_variable {
+                            // If it is, use the new value
+                            nv.value.clone()
+                        } else {
+                            // Check if the variable is in the new_variables
+                            let new_variable = new_variables.iter().find(|nv| nv.name == v.name);
+                            if let Some(nv) = new_variable {
+                                // If it is, use the new value
+                                nv.value.clone()
+                            } else {
+                                // Otherwise, use the old value
+                                v.value.clone()
+                            }
+                        }
+                    }
+                    ScriptArgument::Constant(v) => v.clone(),
+                })
+                .collect::<Vec<Value>>();
+
+            let value = v.exec(args).unwrap();
+            log::debug!(
+                "Executed variable:{}, new value: '{}'",
+                v.name.clone(),
+                value.as_string()
+            );
+            variables.push(Variable {
+                name: v.name.clone(),
+                value,
+            });
+        }
+        variables
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -104,41 +153,89 @@ mod tests {
         assert!(value >= 1 && value <= 10);
     }
 
-    // let counter = 5 + 1
+    // let var1 = var2
     #[test]
-    fn test_script_increment() {
-        let counter = ScriptVariable {
-            name: "counter".to_string(),
-            function: function::Function::Increment(function::IncrementFunction {
-                start: 0,
-                step: 1,
-                threshold: 10,
-            }),
+    fn test_script_copy() {
+        let var1 = ScriptVariable {
+            name: "var1".to_string(),
+            function: function::Function::Copy(function::CopyFunction {}),
         };
-        let value = counter.exec(vec![Value::Int(5)]).unwrap().as_int();
-        assert_eq!(value, 6);
+
+        let var2 = Value::Int(123456789);
+
+        let value = var1.exec(vec![var2]).unwrap().as_int();
+        assert_eq!(value, 123456789);
     }
 
-    // let imsi = Split(":", 1)
+    // let chargingDataRef = Split(":", 1)
     #[test]
     fn test_script_split() {
-        let imsi = ScriptVariable {
-            name: "imsi".to_string(),
+        let charging_data_ref = ScriptVariable {
+            name: "chargingDataRef".to_string(),
             function: function::Function::Split(function::SplitFunction {
                 delimiter: ":".to_string(),
                 index: function::SplitIndex::Nth(1),
             }),
         };
-        let value = imsi
+        let value = charging_data_ref
             .exec(vec![Value::String("123:456".to_string())])
             .unwrap()
             .as_string();
         assert_eq!(value, "456".to_string());
     }
 
-    // TODO
-    // let counter = 0
-    // let counter++
-    // let c1 = counter
-    //
+    // let imsi = 1 + 2
+    #[test]
+    fn test_script_plus() {
+        let imsi = ScriptVariable {
+            name: "imsi".to_string(),
+            function: function::Function::Plus(function::PlusFunction {}),
+        };
+        let value = imsi
+            .exec(vec![Value::Int(1), Value::Int(2)])
+            .unwrap()
+            .as_int();
+        assert_eq!(value, 3);
+    }
+
+    // let var1 = 10
+    // let var2 = var1 + 20
+    // let var1 = 100
+    // let var2 = var1 + 20
+    #[test]
+    fn test_script_exec_plus() {
+        // var1 = 10
+        let var1 = ScriptArgument::Variable(Variable {
+            name: "var1".to_string(),
+            value: Value::Int(10),
+        });
+
+        let var2 = ScriptVariable {
+            name: "var2".to_string(),
+            function: function::Function::Plus(function::PlusFunction {}),
+        };
+
+        let const20 = ScriptArgument::Constant(Value::Int(20));
+
+        let script = Script {
+            variables: vec![(var2, vec![var1, const20])],
+        };
+        // var2 = var1 + 20
+        let variables = script.exec(vec![]);
+        assert_eq!(variables.len(), 1);
+        assert_eq!(variables[0].name, "var2".to_string());
+        assert_eq!(variables[0].value.as_int(), 30);
+
+        // var1 = 100
+        let var1 = Variable {
+            name: "var1".to_string(),
+            value: Value::Int(100),
+        };
+
+        // var2 = var1 + 20
+        let variables = script.exec(vec![var1]);
+        assert_eq!(variables.len(), 1);
+        assert_eq!(variables[0].name, "var2".to_string());
+        assert_eq!(variables[0].value.as_int(), 120);
+    }
 }

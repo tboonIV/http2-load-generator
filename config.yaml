@@ -2,7 +2,7 @@ log_level: "Trace"
 parallel: 1
 runner:
   target_rps: 3
-  duration: 1s
+  duration: 2s
   batch_size: "Auto"
   # batch_size: 2
   base_url: "http://localhost:8081"
@@ -10,33 +10,35 @@ runner:
     variables:
       - name: COUNTER
         value: 0
-        function:
-          type: Increment
-          start: 0
-          threshold: 100000
-          step: 1
-      - name: RANDOM
-        value: 0
-        function:
-          type: Random
-          min: 100
-          max: 999
+      - name: IMSI
+        value: 110000
   scenarios:
     - name: chargingDataCreate
       pre-script:
         variables:
-          # let Now = Now()
-          - name: Now
-            value: 0
+          # let now = Now()
+          - name: now
             function:
               type: Now 
-          # let Random = Random()
-          - name: Random
-            value: 0
+          # let random = Random()
+          - name: random
             function:
               type: Random
               min: 100
               max: 999
+          # # let IMSI = IMSI + 1
+          - name: IMSI
+            function:
+              type: Plus
+            args:
+              - $IMSI
+              - 1
+          # let imsi = IMSI
+          - name: imsi
+            function:
+              type: Copy
+            args:
+              - $IMSI
       request:
         method: POST
         path: "/nchf-convergedcharging/v2/chargingdata"
@@ -48,15 +50,15 @@ runner:
             "oneTimeEvent": true,
             "invocationSequenceNumber": ${COUNTER},
             "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
-            "subscriberIdentifier": "imsi-${IMSI}",
+            "subscriberIdentifier": "imsi-${imsi}",
             "nfConsumerIdentification": {
               "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
               "nFIPv4Address": "198.51.100.1",
               "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
               "nodeFunctionality": "SMF",
               "nFPLMNID": {
-                "mnc": "${RANDOM}",
-                "mcc": "${RANDOM}"
+                "mnc": "${random}",
+                "mcc": "${random}"
               }
             }
           }
@@ -77,32 +79,27 @@ runner:
             value:
               type: "NotNull"
         define:
-          - name: chargingDataRef
+          - name: location
             from: Header
             path: "location"
-            function: 
+      post-script:
+        variables:
+          # # let COUNTER = COUNTER + 1
+          - name: COUNTER
+            function:
+              type: Plus
+            args:
+              - $COUNTER
+              - 1
+          # # let chargingDataRef = location.split("/", Last)
+          - name: chargingDataRef
+            function:
               type: Split
               delimiter: "/"
               index:
                 type: Last
-      post-script:
-        variables:
-          # let Imsi += 1
-          - name: Imsi 
-            value: 0
-            function:
-              type: Increment
-              start: 1000000
-              threshold: 999999
-              step: 1
-          # let Counter += 1
-          - name: Counter
-            value: 0
-            function:
-              type: Increment
-              start: 0
-              threshold: 100000
-              step: 1
+            args:
+              - $location
 
     - name: chargingDataUpdate
       request:
@@ -114,14 +111,15 @@ runner:
           {
             "invocationSequenceNumber": ${COUNTER},
             "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "subscriberIdentifier": "imsi-${imsi}",
             "nfConsumerIdentification": {
               "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
               "nFIPv4Address": "198.51.100.1",
               "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
               "nodeFunctionality": "SMF",
               "nFPLMNID": {
-                "mnc": "${RANDOM}",
-                "mcc": "${RANDOM}"
+                "mnc": "${random}",
+                "mcc": "${random}"
               }
             }
           }
@@ -129,6 +127,15 @@ runner:
       response:
         assert:
           status: 200
+      post-script:
+        variables:
+          # # let COUNTER = COUNTER + 1
+          - name: COUNTER
+            function:
+              type: Plus
+            args:
+              - $COUNTER
+              - 1
     - name: chargingDataRelease
       request:
         method: POST
@@ -139,14 +146,15 @@ runner:
           {
             "invocationSequenceNumber": ${COUNTER},
             "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "subscriberIdentifier": "imsi-${imsi}",
             "nfConsumerIdentification": {
               "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
               "nFIPv4Address": "198.51.100.1",
               "nFName": "046b6c7f-0b8a-43b9-b35d-6489e6daee91",
               "nodeFunctionality": "SMF",
               "nFPLMNID": {
-                "mnc": "${RANDOM}",
-                "mcc": "${RANDOM}"
+                "mnc": "${random}",
+                "mcc": "${random}"
               }
             }
           }
@@ -154,3 +162,12 @@ runner:
       response:
         assert:
           status: 204
+      post-script:
+        variables:
+          # # let COUNTER = COUNTER + 1
+          - name: COUNTER
+            function:
+              type: Plus
+            args:
+              - $COUNTER
+              - 1

@@ -1,3 +1,4 @@
+use crate::variable;
 use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
@@ -6,9 +7,10 @@ use serde::Serialize;
 #[serde(tag = "type")]
 pub enum Function {
     Split(SplitFunction),
-    Increment(IncrementFunction),
     Random(RandomFunction),
     Now(NowFunction),
+    Plus(PlusFunction),
+    Copy(CopyFunction),
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -48,24 +50,6 @@ pub enum SplitIndex {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub struct IncrementFunction {
-    pub start: i32,
-    pub threshold: i32,
-    pub step: i32,
-}
-
-impl IncrementFunction {
-    pub fn apply(&self, input: i32) -> i32 {
-        let output = input + self.step;
-        if output > self.threshold {
-            self.start
-        } else {
-            output
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct RandomFunction {
     pub min: i32,
     pub max: i32,
@@ -90,6 +74,24 @@ impl NowFunction {
         } else {
             now.to_rfc3339()
         };
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct PlusFunction {}
+
+impl PlusFunction {
+    pub fn apply(&self, a: i32, b: i32) -> i32 {
+        a + b
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct CopyFunction {}
+
+impl CopyFunction {
+    pub fn apply(&self, input: &variable::Value) -> variable::Value {
+        input.clone()
     }
 }
 
@@ -129,35 +131,9 @@ mod tests {
     }
 
     #[test]
-    fn test_increment_function() {
-        let f = IncrementFunction {
-            start: 0,
-            threshold: 10,
-            step: 1,
-        };
-        assert_eq!(f.apply(1), 2);
-    }
-
-    #[test]
-    fn test_increment_function_ext() {
-        let f = IncrementFunction {
-            start: 0,
-            threshold: 5,
-            step: 2,
-        };
-        let value = 0;
-        let value = f.apply(value);
-        assert_eq!(value, 2);
-        let value = f.apply(value);
-        assert_eq!(value, 4);
-        let value = f.apply(value);
-        assert_eq!(value, 0);
-        let value = f.apply(value);
-        assert_eq!(value, 2);
-        let value = f.apply(value);
-        assert_eq!(value, 4);
-        let value = f.apply(value);
-        assert_eq!(value, 0);
+    fn test_plus_function() {
+        let f = PlusFunction {};
+        assert_eq!(f.apply(1, 2), 3);
     }
 
     #[test]

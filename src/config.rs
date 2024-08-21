@@ -1,3 +1,4 @@
+use crate::function;
 use crate::scenario;
 use crate::variable;
 use serde::Deserialize;
@@ -86,7 +87,14 @@ pub struct Scenario {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Script {
-    pub variables: Vec<variable::Variable>,
+    pub variables: Vec<ScriptVariable>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ScriptVariable {
+    pub name: String,
+    pub function: function::Function,
+    pub args: Option<Vec<variable::Value>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -171,7 +179,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::function;
 
     #[test]
     fn test_yaml_serde() {
@@ -188,17 +195,8 @@ mod tests {
             variables:
               - name: COUNTER
                 value: 0
-                function:
-                  type: Increment
-                  start: 0
-                  threshold: 100
-                  step: 1
               - name: RANDOM
                 value: 0
-                function:
-                  type: Random
-                  min: 0
-                  max: 100
           # delay_between_scenario: 500ms
           scenarios:
             - name: createSubscriber
@@ -246,25 +244,10 @@ mod tests {
             config.runner.global.variables[0].value,
             variable::Value::Int(0)
         );
-        assert_eq!(
-            config.runner.global.variables[0].function,
-            Some(function::Function::Increment(function::IncrementFunction {
-                start: 0,
-                threshold: 100,
-                step: 1,
-            }))
-        );
         assert_eq!(config.runner.global.variables[1].name, "RANDOM");
         assert_eq!(
             config.runner.global.variables[1].value,
             variable::Value::Int(0)
-        );
-        assert_eq!(
-            config.runner.global.variables[1].function,
-            Some(function::Function::Random(function::RandomFunction {
-                min: 0,
-                max: 100
-            }))
         );
         assert_eq!(config.runner.scenarios.len(), 2);
         assert_eq!(config.runner.scenarios[0].name, "createSubscriber");
