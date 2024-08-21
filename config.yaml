@@ -80,14 +80,9 @@ runner:
             value:
               type: "NotNull"
         define:
-          - name: chargingDataRef
+          - name: location
             from: Header
             path: "location"
-            function: 
-              type: Split
-              delimiter: "/"
-              index:
-                type: Last
       post-script:
         variables:
           # # let COUNTER = COUNTER + 1
@@ -97,6 +92,15 @@ runner:
             args:
               - $COUNTER
               - 1
+          # # let chargingDataRef = location.split("/", Last)
+          - name: chargingDataRef
+            function:
+              type: Split
+              delimiter: "/"
+              index:
+                type: Last
+            args:
+              - $location
 
     - name: chargingDataUpdate
       request:

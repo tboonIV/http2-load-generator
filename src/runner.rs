@@ -163,12 +163,12 @@ impl<'a> Runner<'a> {
                     }
 
                     // Post scenario
-                    let new_variables = cur_scenario.run_post_script();
+                    let new_variables = cur_scenario.run_post_script(variables.clone());
                     // TODO append new variables to existing variables
                     variables.extend(new_variables);
-                    for variable in &variables {
-                        log::debug!("Post Script Variable: {:?}", variable);
-                    }
+                    // for variable in &variables {
+                    //     log::debug!("Post Script Variable: {:?}", variable);
+                    // }
 
                     // Check if there are subsequent scenarios
                     if let Some(scenario) = self.subsequent_scenarios.get_mut(scenario_id) {

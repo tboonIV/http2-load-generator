@@ -11,6 +11,9 @@ pub enum ScriptArgument {
     Constant(Value),
 }
 
+// TODO
+// pub struct ScriptContext {}
+
 pub struct ScriptVariable {
     pub name: String,
     pub function: function::Function,
@@ -24,7 +27,6 @@ impl ScriptVariable {
                 if args.len() == 1 {
                     let arg0 = args[0].as_int();
                     let value = f.apply(arg0);
-                    log::debug!("value: {}", value);
                     Ok(Value::Int(value))
                 } else {
                     return Err(ScriptError("Expects 1 argument".into()));
@@ -63,7 +65,6 @@ impl ScriptVariable {
                 return if args.len() == 2 {
                     let arg0 = args[0].as_int();
                     let arg1 = args[1].as_int();
-                    log::debug!("Plus function: a + b = {} + {}", arg0, arg1);
                     let value = f.apply(arg0, arg1);
                     Ok(Value::Int(value))
                 } else {
@@ -110,7 +111,7 @@ impl Script {
 
             let value = v.exec(args).unwrap();
             log::debug!(
-                "Executed variable:{} new value: {}",
+                "Executed variable:{}, new value: '{}'",
                 v.name.clone(),
                 value.as_string()
             );

@@ -214,14 +214,14 @@ impl<'a> Scenario<'a> {
                                 let str = value.as_string();
                                 if str.starts_with('$') {
                                     let var_name = &str[1..];
-                                    let var = global.get_variable_value(var_name);
-                                    if var.is_none() {
-                                        panic!("Variable '{}' not found", var_name);
-                                    }
-                                    let var = var.unwrap();
+                                    // let var = global.get_variable_value(var_name);
+                                    // if var.is_none() {
+                                    //     panic!("Variable '{}' not found", var_name);
+                                    // }
+                                    // let var = var.unwrap();
                                     let s_arg = script::ScriptArgument::Variable(Variable {
                                         name: var_name.into(),
-                                        value: var,
+                                        value: Value::String("".into()),
                                         function: None,
                                     });
                                     s_args.push(s_arg);
@@ -264,8 +264,7 @@ impl<'a> Scenario<'a> {
                     let mut body = body.clone();
                     // Apply Global Variables
                     for v in variables {
-                        let mut variable = v.lock().unwrap();
-                        variable.apply();
+                        let variable = v.lock().unwrap();
 
                         let value = variable.value.clone();
 
@@ -304,11 +303,10 @@ impl<'a> Scenario<'a> {
         let uri = {
             let mut uri = self.request.uri.clone();
             // Apply Local Variables
-            for mut variable in new_variables {
+            for variable in new_variables {
                 // TODO throw error if variable not found
                 // TODO replace regex with something better
                 //
-                variable.apply();
                 let value = variable.value;
 
                 match value {
@@ -561,7 +559,6 @@ impl<'a> Scenario<'a> {
 
             // TODO need to refactor this
             // invoke function of all global variable
-            // variable.apply();
 
             // copy variables to global_variables
             global_variables.push(variable.clone());
@@ -578,7 +575,7 @@ impl<'a> Scenario<'a> {
                     .find(|x| x.lock().unwrap().name == nv.name)
                 {
                     // Update global variable value
-                    log::debug!("This is global var '{}'", nv.name);
+                    //log::debug!("This is global var '{}'", nv.name);
                     let mut variable = v.lock().unwrap();
                     variable.update_value(nv.value.clone());
                 }
@@ -589,23 +586,21 @@ impl<'a> Scenario<'a> {
         }
     }
 
-    pub fn run_post_script(&self) -> Vec<Variable> {
-        let variables = &self.global.variables;
-        let mut global_variables = vec![];
+    pub fn run_post_script(&self, new_variables: Vec<Variable>) -> Vec<Variable> {
+        let global_variables = &self.global.variables;
+        let mut script_variables = vec![];
 
-        for v in variables {
+        // copy variables to global_variables
+        for v in global_variables {
             let variable = v.lock().unwrap();
-
-            // TODO need to refactor this
-            // invoke function of all global variable
-            // variable.apply();
-
-            // copy variables to global_variables
-            global_variables.push(variable.clone());
+            script_variables.push(variable.clone());
         }
 
+        // Add new variables to script_variables
+        script_variables.extend(new_variables);
+
         if let Some(script) = &self.post_script {
-            let new_variables = script.exec(global_variables.clone());
+            let new_variables = script.exec(script_variables.clone());
             for nv in new_variables.iter() {
                 // Find out which new varaibles is global variables
                 if let Some(v) = self
