@@ -36,10 +36,9 @@ runner:
           # let imsi = IMSI
           - name: imsi
             function:
-              type: Plus
+              type: Copy
             args:
               - $IMSI
-              - 0
       request:
         method: POST
         path: "/nchf-convergedcharging/v2/chargingdata"

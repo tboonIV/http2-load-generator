@@ -23,15 +23,6 @@ impl ScriptVariable {
     pub fn exec(&self, args: Vec<Value>) -> Result<Value, ScriptError> {
         // log::debug!("Executing script variable: {}", self.name);
         match &self.function {
-            function::Function::Increment(f) => {
-                if args.len() == 1 {
-                    let arg0 = args[0].as_int();
-                    let value = f.apply(arg0);
-                    Ok(Value::Int(value))
-                } else {
-                    return Err(ScriptError("Expects 1 argument".into()));
-                }
-            }
             function::Function::Split(f) => {
                 if args.len() == 1 {
                     let arg0 = args[0].as_string();
@@ -69,6 +60,14 @@ impl ScriptVariable {
                     Ok(Value::Int(value))
                 } else {
                     return Err(ScriptError("Expects 2 arguments".into()));
+                }
+            }
+            function::Function::Copy(f) => {
+                if args.len() == 1 {
+                    let value = f.apply(&args[0]);
+                    Ok(value)
+                } else {
+                    return Err(ScriptError("Expects 1 argument".into()));
                 }
             }
         }
@@ -154,32 +153,31 @@ mod tests {
         assert!(value >= 1 && value <= 10);
     }
 
-    // let counter = 5 + 1
+    // let var1 = var2
     #[test]
-    fn test_script_increment() {
-        let counter = ScriptVariable {
-            name: "counter".to_string(),
-            function: function::Function::Increment(function::IncrementFunction {
-                start: 0,
-                step: 1,
-                threshold: 10,
-            }),
+    fn test_script_copy() {
+        let var1 = ScriptVariable {
+            name: "var1".to_string(),
+            function: function::Function::Copy(function::CopyFunction {}),
         };
-        let value = counter.exec(vec![Value::Int(5)]).unwrap().as_int();
-        assert_eq!(value, 6);
+
+        let var2 = Value::Int(123456789);
+
+        let value = var1.exec(vec![var2]).unwrap().as_int();
+        assert_eq!(value, 123456789);
     }
 
-    // let imsi = Split(":", 1)
+    // let chargingDataRef = Split(":", 1)
     #[test]
     fn test_script_split() {
-        let imsi = ScriptVariable {
-            name: "imsi".to_string(),
+        let charging_data_ref = ScriptVariable {
+            name: "chargingDataRef".to_string(),
             function: function::Function::Split(function::SplitFunction {
                 delimiter: ":".to_string(),
                 index: function::SplitIndex::Nth(1),
             }),
         };
-        let value = imsi
+        let value = charging_data_ref
             .exec(vec![Value::String("123:456".to_string())])
             .unwrap()
             .as_string();
@@ -205,7 +203,7 @@ mod tests {
     // let var1 = 100
     // let var2 = var1 + 20
     #[test]
-    fn test_script_exec() {
+    fn test_script_exec_plus() {
         // var1 = 10
         let var1 = ScriptArgument::Variable(Variable {
             name: "var1".to_string(),
