@@ -174,7 +174,6 @@ impl<'a> Scenario<'a> {
                                     let s_arg = script::ScriptArgument::Variable(Variable {
                                         name: var_name.into(),
                                         value: var,
-                                        function: None,
                                     });
                                     s_args.push(s_arg);
                                     continue;
@@ -222,7 +221,6 @@ impl<'a> Scenario<'a> {
                                     let s_arg = script::ScriptArgument::Variable(Variable {
                                         name: var_name.into(),
                                         value: Value::String("".into()),
-                                        function: None,
                                     });
                                     s_args.push(s_arg);
                                     continue;
@@ -509,7 +507,6 @@ impl<'a> Scenario<'a> {
                         let value = Variable {
                             name: v.name.clone(),
                             value: Value::String(value.into()), // TODO also support Int
-                            function: v.function.clone(),
                         };
                         values.push(value);
                     }
@@ -537,7 +534,6 @@ impl<'a> Scenario<'a> {
                         let value = Variable {
                             name: v.name.clone(),
                             value,
-                            function: None,
                         };
                         values.push(value);
                     }
@@ -661,28 +657,17 @@ impl Global {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::function;
 
     #[test]
     fn test_scenario_next_request() {
         let new_var1 = Arc::new(Mutex::new(Variable {
             name: "VAR1".into(),
             value: Value::Int(0),
-            function: Some(function::Function::Increment(function::IncrementFunction {
-                start: 0,
-                threshold: 10,
-                step: 1,
-            })),
         }));
 
         let new_var2 = Arc::new(Mutex::new(Variable {
             name: "VAR2".into(),
             value: Value::Int(100),
-            function: Some(function::Function::Increment(function::IncrementFunction {
-                start: 100,
-                threshold: 1000,
-                step: 20,
-            })),
         }));
 
         let variables = vec![new_var1, new_var2];
@@ -719,25 +704,7 @@ mod tests {
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
-            Some(serde_json::from_str(r#"{"test": "1_120"}"#).unwrap())
-        );
-
-        // Second request
-        let request = scenario.next_request(vec![]);
-        assert_eq!(request.uri, "http://localhost:8080/endpoint");
-        assert_eq!(request.method, Method::GET);
-        assert_eq!(
-            request.body,
-            Some(serde_json::from_str(r#"{"test": "2_140"}"#).unwrap())
-        );
-
-        // Third request
-        let request = scenario.next_request(vec![]);
-        assert_eq!(request.uri, "http://localhost:8080/endpoint");
-        assert_eq!(request.method, Method::GET);
-        assert_eq!(
-            request.body,
-            Some(serde_json::from_str(r#"{"test": "3_160"}"#).unwrap())
+            Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap())
         );
     }
 

@@ -118,7 +118,6 @@ impl Script {
             variables.push(Variable {
                 name: v.name.clone(),
                 value,
-                function: None,
             });
         }
         variables
@@ -211,7 +210,6 @@ mod tests {
         let var1 = ScriptArgument::Variable(Variable {
             name: "var1".to_string(),
             value: Value::Int(10),
-            function: None,
         });
 
         let var2 = ScriptVariable {
@@ -234,7 +232,6 @@ mod tests {
         let var1 = Variable {
             name: "var1".to_string(),
             value: Value::Int(100),
-            function: None,
         };
 
         // var2 = var1 + 20
