@@ -546,22 +546,21 @@ impl<'a> Scenario<'a> {
 
     // TODO remove duplicate code from run_pre_script and run_post_script
     //
-    pub fn run_pre_script(&self) -> Vec<Variable> {
-        let variables = &self.global.variables;
-        let mut global_variables = vec![];
+    pub fn run_pre_script(&self, new_variables: Vec<Variable>) -> Vec<Variable> {
+        let global_variables = &self.global.variables;
+        let mut script_variables = vec![];
 
-        for v in variables {
+        // copy variables to global_variables
+        for v in global_variables {
             let variable = v.lock().unwrap();
-
-            // TODO need to refactor this
-            // invoke function of all global variable
-
-            // copy variables to global_variables
-            global_variables.push(variable.clone());
+            script_variables.push(variable.clone());
         }
 
+        // Add new variables to script_variables
+        script_variables.extend(new_variables);
+
         if let Some(script) = &self.pre_script {
-            let new_variables = script.exec(global_variables.clone());
+            let new_variables = script.exec(script_variables.clone());
             for nv in new_variables.iter() {
                 // Find out which new varaibles is global variables
                 if let Some(v) = self

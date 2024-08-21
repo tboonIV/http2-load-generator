@@ -94,7 +94,6 @@ pub struct Script {
 pub struct ScriptVariable {
     pub name: String,
     pub function: function::Function,
-    // TODO support variable in args
     pub args: Option<Vec<variable::Value>>,
 }
 

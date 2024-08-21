@@ -114,10 +114,7 @@ impl<'a> Runner<'a> {
                 log::debug!("Running scenario #0: {}", scenario.name);
 
                 // Pre Script
-                let variables = scenario.run_pre_script();
-                // for variable in &variables {
-                //     log::debug!("Variable: {:?}", variable);
-                // }
+                let variables = scenario.run_pre_script(vec![]);
                 let http_request = scenario.next_request(variables.clone());
 
                 let ctx = EventContext {
@@ -164,11 +161,7 @@ impl<'a> Runner<'a> {
 
                     // Post scenario
                     let new_variables = cur_scenario.run_post_script(variables.clone());
-                    // TODO append new variables to existing variables
                     variables.extend(new_variables);
-                    // for variable in &variables {
-                    //     log::debug!("Post Script Variable: {:?}", variable);
-                    // }
 
                     // Check if there are subsequent scenarios
                     if let Some(scenario) = self.subsequent_scenarios.get_mut(scenario_id) {
