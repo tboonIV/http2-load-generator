@@ -49,7 +49,7 @@ runner:
             "notifyUri": "http://chf/callback/notify",
             "oneTimeEvent": true,
             "invocationSequenceNumber": ${COUNTER},
-            "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "invocationTimeStamp": "${now}",
             "subscriberIdentifier": "imsi-${imsi}",
             "nfConsumerIdentification": {
               "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
@@ -110,7 +110,7 @@ runner:
         body: |
           {
             "invocationSequenceNumber": ${COUNTER},
-            "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "invocationTimeStamp": "${now}",
             "subscriberIdentifier": "imsi-${imsi}",
             "nfConsumerIdentification": {
               "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
@@ -145,7 +145,7 @@ runner:
         body: |
           {
             "invocationSequenceNumber": ${COUNTER},
-            "invocationTimeStamp": "2021-06-16T17:14:42.849Z",
+            "invocationTimeStamp": "${now}",
             "subscriberIdentifier": "imsi-${imsi}",
             "nfConsumerIdentification": {
               "nFIPv6Address": "2001:db8:85a3::8a2e:370:7334",
