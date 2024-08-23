@@ -8,6 +8,9 @@ runner:
   base_url: "http://localhost:8081"
   global:
     variables:
+        # run: |
+        #   let COUNTER = 0
+        #   let IMSI = 11000
       - name: COUNTER
         value: 0
       - name: IMSI
@@ -15,25 +18,26 @@ runner:
   scenarios:
     - name: chargingDataCreate
       pre-script:
+        # run: |
+        #   let now = Now()
+        #   let random = Random()
+        #   let IMSI = IMSI + 1
+        #   let imsi = IMSI
         variables:
-          # let now = Now()
           - name: now
             function:
               type: Now 
-          # let random = Random()
           - name: random
             function:
               type: Random
               min: 100
               max: 999
-          # # let IMSI = IMSI + 1
           - name: IMSI
             function:
               type: Plus
             args:
               - $IMSI
               - 1
-          # let imsi = IMSI
           - name: imsi
             function:
               type: Copy
@@ -83,15 +87,16 @@ runner:
             from: Header
             path: "location"
       post-script:
+        # run: |
+        #   let COUNTER = COUNTER + 1
+        #   let chargingDataRef = location.split("/", Last)
         variables:
-          # # let COUNTER = COUNTER + 1
           - name: COUNTER
             function:
               type: Plus
             args:
               - $COUNTER
               - 1
-          # # let chargingDataRef = location.split("/", Last)
           - name: chargingDataRef
             function:
               type: Split
@@ -128,8 +133,9 @@ runner:
         assert:
           status: 200
       post-script:
+        # run: |
+        #   let COUNTER = COUNTER + 1
         variables:
-          # # let COUNTER = COUNTER + 1
           - name: COUNTER
             function:
               type: Plus
@@ -163,8 +169,9 @@ runner:
         assert:
           status: 204
       post-script:
+        # run: |
+        #   let COUNTER = COUNTER + 1
         variables:
-          # # let COUNTER = COUNTER + 1
           - name: COUNTER
             function:
               type: Plus
