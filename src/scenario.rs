@@ -627,7 +627,7 @@ impl<'a> Scenario<'a> {
 
 pub struct Global {
     // TODO: Change to HashMap
-    variables: Vec<Arc<Mutex<Variable>>>,
+    pub variables: Vec<Arc<Mutex<Variable>>>,
 }
 
 impl Global {
