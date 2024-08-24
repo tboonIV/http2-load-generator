@@ -627,7 +627,7 @@ impl<'a> Scenario<'a> {
 
 pub struct Global {
     // TODO: Change to HashMap
-    variables: Vec<Arc<Mutex<Variable>>>,
+    pub variables: Vec<Arc<Mutex<Variable>>>,
 }
 
 impl Global {
@@ -640,6 +640,10 @@ impl Global {
         }
 
         Global { variables }
+    }
+
+    pub fn add_variable(&mut self, variable: Variable) {
+        self.variables.push(Arc::new(Mutex::new(variable)));
     }
 
     pub fn get_variable_value(&self, variable_name: &str) -> Option<Value> {

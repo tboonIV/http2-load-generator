@@ -1,6 +1,9 @@
+#![allow(dead_code)]
 use crate::function;
+use crate::scenario::Global;
 use crate::variable::Value;
 use crate::variable::Variable;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct ScriptError(String);
@@ -11,8 +14,104 @@ pub enum ScriptArgument {
     Constant(Value),
 }
 
-// TODO
-// pub struct ScriptContext {}
+pub struct Local {
+    pub variables: HashMap<String, Value>,
+}
+
+pub struct ScriptContext {
+    pub local: Local,
+}
+
+impl ScriptContext {
+    pub fn new() -> Self {
+        let local = Local {
+            variables: HashMap::new(),
+        };
+        ScriptContext { local }
+    }
+
+    pub fn get_variable(&self, name: &str) -> Option<Value> {
+        let value = self.local.variables.get(name);
+        // Get from local first
+        if let Some(value) = value {
+            return Some(value.clone());
+        }
+        None
+    }
+
+    pub fn set_variable(&mut self, _name: &str, value: Value) {
+        self.local.variables.insert(_name.into(), value);
+    }
+}
+
+pub enum Variable2 {
+    Variable(String),
+    Constant(Value),
+}
+
+impl Variable2 {
+    pub fn get_value(&self, ctx: &ScriptContext, global: &Global) -> Result<Value, ScriptError> {
+        match self {
+            Variable2::Variable(name) => {
+                // Check context local
+                let value = ctx.get_variable(name);
+                if let Some(value) = value {
+                    return Ok(value.clone());
+                }
+
+                // Check global
+                let value = global.get_variable_value(name);
+                if let Some(value) = value {
+                    return Ok(value.clone());
+                }
+
+                Err(ScriptError(format!("Variable '{}' not found", name)))
+            }
+            Variable2::Constant(v) => Ok(v.clone()),
+        }
+    }
+}
+
+pub struct Script2 {}
+
+impl Script2 {
+    pub fn exec(
+        ctx: &ScriptContext,
+        global: &Global,
+        function: function::Function,
+        args: Vec<Variable2>,
+    ) -> Result<Value, ScriptError> {
+        match &function {
+            function::Function::Plus(f) => {
+                return if args.len() == 2 {
+                    let arg0 = args[0].get_value(ctx, global)?.as_int();
+                    let arg1 = args[1].get_value(ctx, global)?.as_int();
+                    let value = f.apply(arg0, arg1);
+                    Ok(Value::Int(value))
+                } else {
+                    return Err(ScriptError("Expects 2 arguments".into()));
+                }
+            }
+            function::Function::Now(f) => {
+                return if args.len() == 1 {
+                    let arg0 = args[0].get_value(ctx, global)?;
+                    let arg0 = arg0.as_string();
+                    let value = f.apply(Some(arg0));
+                    Ok(Value::String(value))
+                } else if args.len() == 0 {
+                    let value = f.apply(None);
+                    Ok(Value::String(value))
+                } else {
+                    return Err(ScriptError("Expects 0 or 1 argument".into()));
+                };
+            }
+            // everything else
+            _ => {
+                todo!()
+            }
+        };
+    }
+}
 
 pub struct ScriptVariable {
     pub name: String,
@@ -237,5 +336,72 @@ mod tests {
         assert_eq!(variables.len(), 1);
         assert_eq!(variables[0].name, "var2".to_string());
         assert_eq!(variables[0].value.as_int(), 120);
+    }
+
+    #[test]
+    fn test_script_exec2_now() {
+        let global = Global { variables: vec![] };
+        let local = Local {
+            variables: HashMap::new(),
+        };
+        let ctx = ScriptContext { local };
+
+        let function = function::Function::Now(function::NowFunction {});
+        let args = vec![];
+        let result = Script2::exec(&ctx, &global, function, args);
+        println!("{:?}", result);
+    }
+
+    #[test]
+    fn test_script_exec2_plus_constant() {
+        // Global
+        let global = Global { variables: vec![] };
+
+        // Script Context
+        let mut ctx = ScriptContext::new();
+        ctx.set_variable("var2", Value::Int(22));
+
+        // local var2 = 22
+        // local var3 = var2 + 1
+        let function = function::Function::Plus(function::PlusFunction {});
+        let args = vec![
+            Variable2::Variable("var2".into()),
+            Variable2::Constant(Value::Int(1)),
+        ];
+        let result = Script2::exec(&ctx, &global, function, args).unwrap();
+        assert_eq!(result.as_int(), 23);
+
+        // insert var3 into context
+        ctx.set_variable("var3", result);
+        assert_eq!(ctx.get_variable("var3").unwrap().as_int(), 23);
+    }
+
+    #[test]
+    fn test_script_exec2_plus_global_var() {
+        // Global
+        let mut global = Global { variables: vec![] };
+        global.add_variable(Variable {
+            name: "VAR1".into(),
+            value: Value::Int(11),
+        });
+
+        // Script Context
+        let mut ctx = ScriptContext::new();
+        ctx.set_variable("var2", Value::Int(22));
+
+        // global VAR1 = 11
+        // local var2 = 22
+        // local var3 = VAR1 + var2
+        let function = function::Function::Plus(function::PlusFunction {});
+        let args = vec![
+            Variable2::Variable("VAR1".into()),
+            Variable2::Variable("var2".into()),
+        ];
+        let result = Script2::exec(&ctx, &global, function, args).unwrap();
+        assert_eq!(result.as_int(), 33);
+
+        // insert var3 into context
+        ctx.set_variable("var3", result);
+        assert_eq!(ctx.get_variable("var3").unwrap().as_int(), 33);
     }
 }
