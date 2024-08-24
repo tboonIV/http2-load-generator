@@ -23,21 +23,23 @@ pub struct ScriptContext {
 }
 
 impl ScriptContext {
-    pub fn get_variable(&self, name: &str, global: &Global) -> Option<Value> {
+    pub fn new() -> Self {
+        let local = Local {
+            variables: HashMap::new(),
+        };
+        ScriptContext { local }
+    }
+
+    pub fn get_variable(&self, name: &str) -> Option<Value> {
         let value = self.local.variables.get(name);
         // Get from local first
-        if let Some(value) = value {
-            return Some(value.clone());
-        }
-        // Check global
-        let value = global.get_variable_value(name);
         if let Some(value) = value {
             return Some(value.clone());
         }
         None
     }
 
-    pub fn update_variable(&mut self, _name: &str, value: Value) {
+    pub fn set_variable(&mut self, _name: &str, value: Value) {
         self.local.variables.insert(_name.into(), value);
     }
 }
@@ -51,10 +53,19 @@ impl Variable2 {
     pub fn get_value(&self, ctx: &ScriptContext, global: &Global) -> Result<Value, ScriptError> {
         match self {
             Variable2::Variable(name) => {
-                let value = ctx
-                    .get_variable(name, global)
-                    .ok_or(ScriptError(format!("Variable '{}' not found", name)))?;
-                Ok(value)
+                // Check context local
+                let value = ctx.get_variable(name);
+                if let Some(value) = value {
+                    return Ok(value.clone());
+                }
+
+                // Check global
+                let value = global.get_variable_value(name);
+                if let Some(value) = value {
+                    return Ok(value.clone());
+                }
+
+                Err(ScriptError(format!("Variable '{}' not found", name)))
             }
             Variable2::Constant(v) => Ok(v.clone()),
         }
@@ -346,15 +357,9 @@ mod tests {
         // Global
         let global = Global { variables: vec![] };
 
-        // Local
-        let mut local_variables = HashMap::new();
-        local_variables.insert("var2".into(), Value::Int(22));
-        let local = Local {
-            variables: local_variables,
-        };
-
         // Script Context
-        let mut ctx = ScriptContext { local };
+        let mut ctx = ScriptContext::new();
+        ctx.set_variable("var2", Value::Int(22));
 
         // local var2 = 22
         // local var3 = var2 + 1
@@ -367,8 +372,8 @@ mod tests {
         assert_eq!(result.as_int(), 23);
 
         // insert var3 into context
-        ctx.update_variable("var3", result);
-        assert_eq!(ctx.get_variable("var3", &global).unwrap().as_int(), 23);
+        ctx.set_variable("var3", result);
+        assert_eq!(ctx.get_variable("var3").unwrap().as_int(), 23);
     }
 
     #[test]
@@ -380,15 +385,9 @@ mod tests {
             value: Value::Int(11),
         });
 
-        // Local
-        let mut local_variables = HashMap::new();
-        local_variables.insert("var2".into(), Value::Int(22));
-        let local = Local {
-            variables: local_variables,
-        };
-
         // Script Context
-        let mut ctx = ScriptContext { local };
+        let mut ctx = ScriptContext::new();
+        ctx.set_variable("var2", Value::Int(22));
 
         // global VAR1 = 11
         // local var2 = 22
@@ -402,7 +401,7 @@ mod tests {
         assert_eq!(result.as_int(), 33);
 
         // insert var3 into context
-        ctx.update_variable("var3", result);
-        assert_eq!(ctx.get_variable("var3", &global).unwrap().as_int(), 33);
+        ctx.set_variable("var3", result);
+        assert_eq!(ctx.get_variable("var3").unwrap().as_int(), 33);
     }
 }
