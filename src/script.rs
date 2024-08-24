@@ -18,29 +18,27 @@ pub struct Local {
     pub variables: HashMap<String, Value>,
 }
 
-pub struct ScriptContext<'a, 'b> {
-    pub global: &'a Global,
-    pub local: &'b Local,
+pub struct ScriptContext {
+    pub local: Local,
 }
 
-impl ScriptContext<'_, '_> {
-    pub fn get_variable(&self, name: &str) -> Option<Value> {
+impl ScriptContext {
+    pub fn get_variable(&self, name: &str, global: &Global) -> Option<Value> {
         let value = self.local.variables.get(name);
         // Get from local first
         if let Some(value) = value {
             return Some(value.clone());
         }
         // Check global
-        let value = self.global.get_variable_value(name);
+        let value = global.get_variable_value(name);
         if let Some(value) = value {
             return Some(value.clone());
         }
         None
     }
 
-    // pub fn update_variable(&mut self, _name: &str, _value: Value) {
-    pub fn update_variable(&mut self, _name: &str) {
-        todo!()
+    pub fn update_variable(&mut self, _name: &str, value: Value) {
+        self.local.variables.insert(_name.into(), value);
     }
 }
 
@@ -50,11 +48,11 @@ pub enum Variable2 {
 }
 
 impl Variable2 {
-    pub fn get_value(&self, ctx: &ScriptContext) -> Result<Value, ScriptError> {
+    pub fn get_value(&self, ctx: &ScriptContext, global: &Global) -> Result<Value, ScriptError> {
         match self {
             Variable2::Variable(name) => {
                 let value = ctx
-                    .get_variable(name)
+                    .get_variable(name, global)
                     .ok_or(ScriptError(format!("Variable '{}' not found", name)))?;
                 Ok(value)
             }
@@ -68,14 +66,15 @@ pub struct Script2 {}
 impl Script2 {
     pub fn exec(
         ctx: &ScriptContext,
+        global: &Global,
         function: function::Function,
         args: Vec<Variable2>,
     ) -> Result<Value, ScriptError> {
         match &function {
             function::Function::Plus(f) => {
                 return if args.len() == 2 {
-                    let arg0 = args[0].get_value(ctx)?.as_int();
-                    let arg1 = args[1].get_value(ctx)?.as_int();
+                    let arg0 = args[0].get_value(ctx, global)?.as_int();
+                    let arg1 = args[1].get_value(ctx, global)?.as_int();
                     let value = f.apply(arg0, arg1);
                     Ok(Value::Int(value))
                 } else {
@@ -84,7 +83,7 @@ impl Script2 {
             }
             function::Function::Now(f) => {
                 return if args.len() == 1 {
-                    let arg0 = args[0].get_value(ctx)?;
+                    let arg0 = args[0].get_value(ctx, global)?;
                     let arg0 = arg0.as_string();
                     let value = f.apply(Some(arg0));
                     Ok(Value::String(value))
@@ -334,42 +333,76 @@ mod tests {
         let local = Local {
             variables: HashMap::new(),
         };
-        let ctx = ScriptContext {
-            global: &global,
-            local: &local,
-        };
+        let ctx = ScriptContext { local };
 
         let function = function::Function::Now(function::NowFunction {});
         let args = vec![];
-        let result = Script2::exec(&ctx, function, args);
+        let result = Script2::exec(&ctx, &global, function, args);
         println!("{:?}", result);
     }
 
     #[test]
-    fn test_script_exec2_plus() {
-        let mut local_variables = HashMap::new();
-        local_variables.insert("var1".into(), Value::Int(11));
+    fn test_script_exec2_plus_constant() {
+        // Global
+        let global = Global { variables: vec![] };
 
+        // Local
+        let mut local_variables = HashMap::new();
+        local_variables.insert("var2".into(), Value::Int(22));
         let local = Local {
             variables: local_variables,
         };
-        let global = Global { variables: vec![] };
-        let ctx = ScriptContext {
-            global: &global,
-            local: &local,
-        };
 
-        // var1 = 11
-        // var2 = var1 + 2
+        // Script Context
+        let mut ctx = ScriptContext { local };
+
+        // local var2 = 22
+        // local var3 = var2 + 1
         let function = function::Function::Plus(function::PlusFunction {});
         let args = vec![
-            Variable2::Variable("var1".into()),
-            Variable2::Constant(Value::Int(2)),
+            Variable2::Variable("var2".into()),
+            Variable2::Constant(Value::Int(1)),
         ];
-        let result = Script2::exec(&ctx, function, args);
-        println!("{:?}", result);
-        assert_eq!(result.unwrap().as_int(), 13);
+        let result = Script2::exec(&ctx, &global, function, args).unwrap();
+        assert_eq!(result.as_int(), 23);
 
-        // TODO insert var2 into context
+        // insert var3 into context
+        ctx.update_variable("var3", result);
+        assert_eq!(ctx.get_variable("var3", &global).unwrap().as_int(), 23);
+    }
+
+    #[test]
+    fn test_script_exec2_plus_global_var() {
+        // Global
+        let mut global = Global { variables: vec![] };
+        global.add_variable(Variable {
+            name: "VAR1".into(),
+            value: Value::Int(11),
+        });
+
+        // Local
+        let mut local_variables = HashMap::new();
+        local_variables.insert("var2".into(), Value::Int(22));
+        let local = Local {
+            variables: local_variables,
+        };
+
+        // Script Context
+        let mut ctx = ScriptContext { local };
+
+        // global VAR1 = 11
+        // local var2 = 22
+        // local var3 = VAR1 + var2
+        let function = function::Function::Plus(function::PlusFunction {});
+        let args = vec![
+            Variable2::Variable("VAR1".into()),
+            Variable2::Variable("var2".into()),
+        ];
+        let result = Script2::exec(&ctx, &global, function, args).unwrap();
+        assert_eq!(result.as_int(), 33);
+
+        // insert var3 into context
+        ctx.update_variable("var3", result);
+        assert_eq!(ctx.get_variable("var3", &global).unwrap().as_int(), 33);
     }
 }

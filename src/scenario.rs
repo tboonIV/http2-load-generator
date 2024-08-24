@@ -642,6 +642,10 @@ impl Global {
         Global { variables }
     }
 
+    pub fn add_variable(&mut self, variable: Variable) {
+        self.variables.push(Arc::new(Mutex::new(variable)));
+    }
+
     pub fn get_variable_value(&self, variable_name: &str) -> Option<Value> {
         for v in &self.variables {
             let variable = v.lock().unwrap();
