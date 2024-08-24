@@ -3,11 +3,14 @@ use crate::config::RunnerConfig;
 use crate::http_api::{send_request, HttpRequest, HttpResponse};
 use crate::scenario::Global;
 use crate::scenario::Scenario;
+use crate::script::ScriptContext;
 use crate::stats::ApiStats;
+use crate::variable::Value;
 use crate::variable::Variable;
 use bytes::Bytes;
 use h2::client;
 use h2::client::SendRequest;
+use std::cell::RefCell;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
@@ -117,9 +120,14 @@ impl<'a> Runner<'a> {
                 let variables = scenario.run_pre_script(vec![]);
                 let http_request = scenario.next_request(variables.clone());
 
+                // TODO Replace run_pre_script with this method
+                let mut script_ctx = ScriptContext::new();
+                scenario.run_pre_script2(&mut script_ctx);
+
                 let ctx = EventContext {
                     scenario_id: 0,
                     variables,
+                    script_ctx: RefCell::new(script_ctx),
                 };
                 eventloop_tx
                     .send(Event::SendMessage(ctx, http_request, resp_tx.clone()))
@@ -171,6 +179,12 @@ impl<'a> Runner<'a> {
                         // let variables = scenario.run_pre_script();
                         // TODO append new variables to existing variables
 
+                        // Test script context
+                        let _c = ctx
+                            .script_ctx
+                            .borrow_mut()
+                            .set_variable("var3", Value::String("value3".to_string()));
+
                         // for variable in &variables {
                         //     log::debug!("Variable: {:?}", variable);
                         // }
@@ -181,6 +195,7 @@ impl<'a> Runner<'a> {
                                 EventContext {
                                     scenario_id: scenario_id + 1,
                                     variables,
+                                    script_ctx: ctx.script_ctx,
                                 },
                                 http_request,
                                 resp_tx.clone(),
@@ -252,6 +267,7 @@ impl<'a> Runner<'a> {
                             EventContext {
                                 scenario_id,
                                 variables: ctx.variables,
+                                script_ctx: ctx.script_ctx,
                             },
                             response,
                         ))
@@ -271,7 +287,8 @@ impl<'a> Runner<'a> {
 
 struct EventContext {
     scenario_id: usize,
-    variables: Vec<Variable>,
+    variables: Vec<Variable>, // TODO replace this with script_ctx
+    script_ctx: RefCell<ScriptContext>,
 }
 
 enum Event {

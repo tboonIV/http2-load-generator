@@ -3,6 +3,7 @@ use crate::function;
 use crate::http_api::HttpRequest;
 use crate::http_api::HttpResponse;
 use crate::script;
+use crate::script::ScriptContext;
 use crate::script::ScriptVariable;
 use crate::variable::Value;
 use crate::variable::Variable;
@@ -542,6 +543,18 @@ impl<'a> Scenario<'a> {
         }
 
         values
+    }
+
+    pub fn run_pre_script2(&self, ctx: &mut ScriptContext) {
+        // TODO
+        ctx.set_variable("", Value::String("".into()));
+
+        let function = function::Function::Plus(function::PlusFunction {});
+        let args = vec![
+            script::Variable2::Variable("VAR1".into()),
+            script::Variable2::Variable("var2".into()),
+        ];
+        let _result = script::Script2::exec(&ctx, &self.global, function, args).unwrap();
     }
 
     // TODO remove duplicate code from run_pre_script and run_post_script
