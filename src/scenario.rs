@@ -547,14 +547,22 @@ impl<'a> Scenario<'a> {
 
     pub fn run_pre_script2(&self, ctx: &mut ScriptContext) {
         // TODO
-        ctx.set_variable("", Value::String("".into()));
+        // ctx.set_variable("", Value::String("".into()));
+        //
+        // let _result = script::Script2::exec(&ctx, &self.global, function, args).unwrap();
+        log::debug!("run_pre_script2");
+        let var1 = ctx.get_variable("var1");
+        log::debug!("var1 = {:?}", var1);
 
         let function = function::Function::Plus(function::PlusFunction {});
         let args = vec![
-            script::Variable2::Variable("VAR1".into()),
-            script::Variable2::Variable("var2".into()),
+            script::Variable2::Variable("var1".into()),
+            script::Variable2::Constant(Value::Int(10)),
         ];
-        let _result = script::Script2::exec(&ctx, &self.global, function, args).unwrap();
+        let var1 = script::Script2::exec(&ctx, &self.global, function, args).unwrap();
+
+        log::debug!("new var1 = {:?}", var1);
+        ctx.set_variable("var1", var1)
     }
 
     // TODO remove duplicate code from run_pre_script and run_post_script

@@ -122,6 +122,7 @@ impl<'a> Runner<'a> {
 
                 // TODO Replace run_pre_script with this method
                 let mut script_ctx = ScriptContext::new();
+                script_ctx.set_variable("var1", Value::Int(0));
                 scenario.run_pre_script2(&mut script_ctx);
 
                 let ctx = EventContext {
@@ -180,14 +181,11 @@ impl<'a> Runner<'a> {
                         // TODO append new variables to existing variables
 
                         // Test script context
-                        let _c = ctx
-                            .script_ctx
-                            .borrow_mut()
-                            .set_variable("var3", Value::String("value3".to_string()));
+                        {
+                            let mut script_ctx = ctx.script_ctx.borrow_mut();
+                            scenario.run_pre_script2(&mut script_ctx);
+                        }
 
-                        // for variable in &variables {
-                        //     log::debug!("Variable: {:?}", variable);
-                        // }
                         let http_request = scenario.next_request(variables.clone());
 
                         eventloop_tx
