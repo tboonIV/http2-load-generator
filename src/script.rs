@@ -129,8 +129,32 @@ impl Script2 {
                 }
             }
             // TODO implement other functions
-            _ => {
-                todo!()
+            function::Function::Random(f) => {
+                if self.args.len() == 0 {
+                    let value = f.apply();
+                    Value::Int(value)
+                } else {
+                    return Err(ScriptError("Expects 0 arguments".into()));
+                }
+            }
+            function::Function::Split(f) => {
+                if self.args.len() == 1 {
+                    let arg0 = self.args[0].get_value(ctx, global)?;
+                    let arg0 = arg0.as_string();
+                    let value = f.apply(arg0);
+                    Value::String(value)
+                } else {
+                    return Err(ScriptError("Expects 1 argument".into()));
+                }
+            }
+            function::Function::Copy(f) => {
+                if self.args.len() == 1 {
+                    let arg0 = self.args[0].get_value(ctx, global)?;
+                    let value = f.apply(&arg0);
+                    value
+                } else {
+                    return Err(ScriptError("Expects 1 argument".into()));
+                }
             }
         };
 

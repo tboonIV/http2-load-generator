@@ -85,6 +85,7 @@ pub struct Scenario<'a> {
     pub assert_panic: bool,
     pub pre_script: Option<script::Script>,
     pub post_script: Option<script::Script>,
+    pub pre_script2: Option<Vec<script::Script2>>,
 }
 
 impl<'a> Scenario<'a> {
@@ -241,6 +242,18 @@ impl<'a> Scenario<'a> {
             None => None,
         };
 
+        let pre_script2 = match &config.pre_script {
+            Some(s) => {
+                let mut scripts: Vec<script::Script2> = vec![];
+                for v in &s.variables {
+                    let script = script::Script2::new(v.clone());
+                    scripts.push(script);
+                }
+                Some(scripts)
+            }
+            None => None,
+        };
+
         Scenario {
             name: config.name.clone(),
             base_url: base_url.into(),
@@ -251,6 +264,7 @@ impl<'a> Scenario<'a> {
             assert_panic: true,
             pre_script,
             post_script,
+            pre_script2,
         }
     }
 
@@ -551,18 +565,34 @@ impl<'a> Scenario<'a> {
         //
         // let _result = script::Script2::exec(&ctx, &self.global, function, args).unwrap();
         log::debug!("run_pre_script2");
-        let var1 = ctx.get_variable("var1");
-        log::debug!("var1 = {:?}", var1);
 
-        let function = function::Function::Plus(function::PlusFunction {});
-        let args = vec![
-            script::Variable2::Variable("var1".into()),
-            script::Variable2::Constant(Value::Int(10)),
-        ];
-        let var1 = script::Script2::exec(&ctx, &self.global, function, args).unwrap();
+        if let Some(script) = &self.pre_script2 {
+            for s in script {
+                s.exec2(ctx, &self.global).unwrap();
+            }
+        }
 
+        let var1 = ctx.get_variable("var1").unwrap();
         log::debug!("new var1 = {:?}", var1);
-        ctx.set_variable("var1", var1)
+
+        let imsi = ctx.get_variable("imsi").unwrap();
+        log::debug!("new imsi = {:?}", imsi);
+
+        let now = ctx.get_variable("now").unwrap();
+        log::debug!("new now = {:?}", now);
+
+        // let var1 = ctx.get_variable("var1");
+        // log::debug!("var1 = {:?}", var1);
+        //
+        // let function = function::Function::Plus(function::PlusFunction {});
+        // let args = vec![
+        //     script::Variable2::Variable("var1".into()),
+        //     script::Variable2::Constant(Value::Int(10)),
+        // ];
+        // let var1 = script::Script2::exec(&ctx, &self.global, function, args).unwrap();
+        //
+        // log::debug!("new var1 = {:?}", var1);
+        // ctx.set_variable("var1", var1)
     }
 
     // TODO remove duplicate code from run_pre_script and run_post_script
@@ -720,6 +750,7 @@ mod tests {
             assert_panic: false,
             post_script: None,
             pre_script: None,
+            pre_script2: None,
         };
 
         // First request
@@ -755,6 +786,7 @@ mod tests {
             assert_panic: false,
             post_script: None,
             pre_script: None,
+            pre_script2: None,
         };
 
         let response1 = HttpResponse {
@@ -806,6 +838,7 @@ mod tests {
             assert_panic: false,
             post_script: None,
             pre_script: None,
+            pre_script2: None,
         };
 
         // Missing content-type header
@@ -914,6 +947,7 @@ mod tests {
             assert_panic: false,
             post_script: None,
             pre_script: None,
+            pre_script2: None,
         };
 
         // Test Missing Field 'Foo'
@@ -990,6 +1024,7 @@ mod tests {
             assert_panic: false,
             post_script: None,
             pre_script: None,
+            pre_script2: None,
         };
 
         scenario.update_variables(&HttpResponse {
