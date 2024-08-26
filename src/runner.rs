@@ -117,17 +117,27 @@ impl<'a> Runner<'a> {
                 log::debug!("Running scenario #0: {}", scenario.name);
 
                 // Pre Script
-                let variables = scenario.run_pre_script(vec![]);
-                let http_request = scenario.next_request(variables.clone());
+                // let variables = scenario.run_pre_script(vec![]);
+                // let http_request = scenario.next_request(variables.clone());
 
                 // TODO Replace run_pre_script with this method
                 let mut script_ctx = ScriptContext::new();
-                script_ctx.set_variable("var1", Value::Int(0));
                 scenario.run_pre_script2(&mut script_ctx);
+
+                // TODO delete me
+                let mut variables = vec![];
+                for (name, v) in &script_ctx.get_all_variables() {
+                    let v = Variable {
+                        name: name.to_string(),
+                        value: v.clone(),
+                    };
+                    variables.push(v);
+                }
+                let http_request = scenario.next_request(variables);
 
                 let ctx = EventContext {
                     scenario_id: 0,
-                    variables,
+                    // variables,
                     script_ctx: RefCell::new(script_ctx),
                 };
                 eventloop_tx
@@ -152,7 +162,7 @@ impl<'a> Runner<'a> {
                     };
 
                     // let mut new_variable_values = vec![];
-                    let mut variables = ctx.variables;
+                    // let mut variables = ctx.variables;
 
                     if !cur_scenario.assert_response(&response) {
                         // Error Stats
@@ -164,13 +174,13 @@ impl<'a> Runner<'a> {
                         api_stats.inc_success();
 
                         // Get new variables from response to pass to next scenario
-                        let new_variables = cur_scenario.update_variables(&response);
-                        variables.extend(new_variables);
+                        // let new_variables = cur_scenario.update_variables(&response);
+                        // variables.extend(new_variables);
                     }
 
                     // Post scenario
-                    let new_variables = cur_scenario.run_post_script(variables.clone());
-                    variables.extend(new_variables);
+                    // let new_variables = cur_scenario.run_post_script(variables.clone());
+                    // variables.extend(new_variables);
 
                     {
                         let mut script_ctx = ctx.script_ctx.borrow_mut();
@@ -196,13 +206,24 @@ impl<'a> Runner<'a> {
                             scenario.run_pre_script2(&mut script_ctx);
                         }
 
+                        // TODO delete me
+                        let mut variables = vec![];
+                        for (name, v) in &ctx.script_ctx.borrow().get_all_variables() {
+                            let v = Variable {
+                                name: name.to_string(),
+                                value: v.clone(),
+                            };
+                            variables.push(v);
+                        }
+
                         let http_request = scenario.next_request(variables.clone());
+                        // let http_request = scenario.next_request(variables.clone());
 
                         eventloop_tx
                             .send(Event::SendMessage(
                                 EventContext {
                                     scenario_id: scenario_id + 1,
-                                    variables,
+                                    // variables,
                                     script_ctx: ctx.script_ctx,
                                 },
                                 http_request,
@@ -274,7 +295,7 @@ impl<'a> Runner<'a> {
                         tx.send((
                             EventContext {
                                 scenario_id,
-                                variables: ctx.variables,
+                                // variables: ctx.variables,
                                 script_ctx: ctx.script_ctx,
                             },
                             response,
@@ -295,7 +316,7 @@ impl<'a> Runner<'a> {
 
 struct EventContext {
     scenario_id: usize,
-    variables: Vec<Variable>, // TODO replace this with script_ctx
+    // variables: Vec<Variable>, // TODO replace this with script_ctx
     script_ctx: RefCell<ScriptContext>,
 }
 

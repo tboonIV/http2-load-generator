@@ -40,6 +40,11 @@ impl ScriptContext {
         None
     }
 
+    // TODO delete me
+    pub fn get_all_variables(&self) -> HashMap<String, Value> {
+        self.local.variables.clone()
+    }
+
     pub fn set_variable(&mut self, _name: &str, value: Value) {
         self.local.variables.insert(_name.into(), value);
     }
