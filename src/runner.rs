@@ -172,6 +172,16 @@ impl<'a> Runner<'a> {
                     let new_variables = cur_scenario.run_post_script(variables.clone());
                     variables.extend(new_variables);
 
+                    {
+                        let mut script_ctx = ctx.script_ctx.borrow_mut();
+                        // TODO: remove hard code
+                        script_ctx.set_variable(
+                            "location",
+                            Value::String("http://localhost:9089/1234567890".to_string()),
+                        );
+                        cur_scenario.run_post_script2(&mut script_ctx);
+                    }
+
                     // Check if there are subsequent scenarios
                     if let Some(scenario) = self.subsequent_scenarios.get_mut(scenario_id) {
                         log::debug!("Running scenario #{}: {}", scenario_id + 1, scenario.name);

@@ -85,7 +85,9 @@ pub struct Scenario<'a> {
     pub assert_panic: bool,
     pub pre_script: Option<script::Script>,
     pub post_script: Option<script::Script>,
+
     pub pre_script2: Option<Vec<script::Script2>>,
+    pub post_script2: Option<Vec<script::Script2>>,
 }
 
 impl<'a> Scenario<'a> {
@@ -254,6 +256,18 @@ impl<'a> Scenario<'a> {
             None => None,
         };
 
+        let post_script2 = match &config.post_script {
+            Some(s) => {
+                let mut scripts: Vec<script::Script2> = vec![];
+                for v in &s.variables {
+                    let script = script::Script2::new(v.clone());
+                    scripts.push(script);
+                }
+                Some(scripts)
+            }
+            None => None,
+        };
+
         Scenario {
             name: config.name.clone(),
             base_url: base_url.into(),
@@ -265,6 +279,7 @@ impl<'a> Scenario<'a> {
             pre_script,
             post_script,
             pre_script2,
+            post_script2,
         }
     }
 
@@ -560,10 +575,6 @@ impl<'a> Scenario<'a> {
     }
 
     pub fn run_pre_script2(&self, ctx: &mut ScriptContext) {
-        // TODO
-        // ctx.set_variable("", Value::String("".into()));
-        //
-        // let _result = script::Script2::exec(&ctx, &self.global, function, args).unwrap();
         log::debug!("run_pre_script2");
 
         if let Some(script) = &self.pre_script2 {
@@ -572,27 +583,25 @@ impl<'a> Scenario<'a> {
             }
         }
 
-        let var1 = ctx.get_variable("var1").unwrap();
-        log::debug!("new var1 = {:?}", var1);
+        // print all variables from context
+        for (k, v) in ctx.local.variables.iter() {
+            log::debug!("pre context variable: {} = {:?}", k, v);
+        }
+    }
 
-        let imsi = ctx.get_variable("imsi").unwrap();
-        log::debug!("new imsi = {:?}", imsi);
+    pub fn run_post_script2(&self, ctx: &mut ScriptContext) {
+        log::debug!("run_post_script2");
 
-        let now = ctx.get_variable("now").unwrap();
-        log::debug!("new now = {:?}", now);
+        if let Some(script) = &self.post_script2 {
+            for s in script {
+                s.exec2(ctx, &self.global).unwrap();
+            }
+        }
 
-        // let var1 = ctx.get_variable("var1");
-        // log::debug!("var1 = {:?}", var1);
-        //
-        // let function = function::Function::Plus(function::PlusFunction {});
-        // let args = vec![
-        //     script::Variable2::Variable("var1".into()),
-        //     script::Variable2::Constant(Value::Int(10)),
-        // ];
-        // let var1 = script::Script2::exec(&ctx, &self.global, function, args).unwrap();
-        //
-        // log::debug!("new var1 = {:?}", var1);
-        // ctx.set_variable("var1", var1)
+        // print all variables from context
+        for (k, v) in ctx.local.variables.iter() {
+            log::debug!("post context variable: {} = {:?}", k, v);
+        }
     }
 
     // TODO remove duplicate code from run_pre_script and run_post_script
@@ -751,6 +760,7 @@ mod tests {
             post_script: None,
             pre_script: None,
             pre_script2: None,
+            post_script2: None,
         };
 
         // First request
@@ -787,6 +797,7 @@ mod tests {
             post_script: None,
             pre_script: None,
             pre_script2: None,
+            post_script2: None,
         };
 
         let response1 = HttpResponse {
@@ -839,6 +850,7 @@ mod tests {
             post_script: None,
             pre_script: None,
             pre_script2: None,
+            post_script2: None,
         };
 
         // Missing content-type header
@@ -948,6 +960,7 @@ mod tests {
             post_script: None,
             pre_script: None,
             pre_script2: None,
+            post_script2: None,
         };
 
         // Test Missing Field 'Foo'
@@ -1025,6 +1038,7 @@ mod tests {
             post_script: None,
             pre_script: None,
             pre_script2: None,
+            post_script2: None,
         };
 
         scenario.update_variables(&HttpResponse {
