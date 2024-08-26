@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use crate::config;
 use crate::function;
 use crate::scenario::Global;
 use crate::variable::Value;
@@ -72,9 +73,73 @@ impl Variable2 {
     }
 }
 
-pub struct Script2 {}
+pub struct Script2 {
+    pub return_var_name: String,
+    pub function: function::Function,
+    pub args: Vec<Variable2>,
+}
 
 impl Script2 {
+    pub fn new(config: config::ScriptVariable) -> Self {
+        let mut args = vec![];
+        if let Some(config_args) = config.args {
+            for arg in config_args {
+                if arg.is_string() {
+                    let str_arg = arg.as_string();
+                    if str_arg.starts_with("$") {
+                        let var_name = &str_arg[1..];
+                        args.push(Variable2::Variable(var_name.into()));
+                        continue;
+                    }
+                }
+                let arg = Variable2::Constant(arg);
+                args.push(arg);
+            }
+        }
+        Script2 {
+            return_var_name: config.name,
+            function: config.function,
+            args,
+        }
+    }
+
+    pub fn exec2(&self, ctx: &mut ScriptContext, global: &Global) -> Result<(), ScriptError> {
+        let value = match &self.function {
+            function::Function::Plus(f) => {
+                if self.args.len() == 2 {
+                    let arg0 = self.args[0].get_value(ctx, global)?.as_int();
+                    let arg1 = self.args[1].get_value(ctx, global)?.as_int();
+                    let value = f.apply(arg0, arg1);
+                    Value::Int(value)
+                } else {
+                    return Err(ScriptError("Expects 2 arguments".into()));
+                }
+            }
+            function::Function::Now(f) => {
+                if self.args.len() == 1 {
+                    let arg0 = self.args[0].get_value(ctx, global)?;
+                    let arg0 = arg0.as_string();
+                    let value = f.apply(Some(arg0));
+                    Value::String(value)
+                } else if self.args.len() == 0 {
+                    let value = f.apply(None);
+                    Value::String(value)
+                } else {
+                    return Err(ScriptError("Expects 0 or 1 argument".into()));
+                }
+            }
+            // TODO implement other functions
+            _ => {
+                todo!()
+            }
+        };
+
+        // Set the return value to the context
+        ctx.set_variable(self.return_var_name.as_str(), value);
+
+        Ok(())
+    }
+
     pub fn exec(
         ctx: &ScriptContext,
         global: &Global,
@@ -404,4 +469,25 @@ mod tests {
         ctx.set_variable("var3", result);
         assert_eq!(ctx.get_variable("var3").unwrap().as_int(), 33);
     }
+}
+
+#[test]
+fn test_script2_exec2() {
+    let global = Global { variables: vec![] };
+
+    // local var2 = 22
+    // local var3 = var2 + 1
+    let script = Script2::new(config::ScriptVariable {
+        name: "var3".to_string(),
+        function: function::Function::Plus(function::PlusFunction {}),
+        args: Some(vec![Value::String("$var2".to_string()), Value::Int(1)]),
+    });
+
+    let mut ctx = ScriptContext::new();
+    ctx.set_variable("var2", Value::Int(22));
+
+    script.exec2(&mut ctx, &global).unwrap();
+
+    let var3 = ctx.get_variable("var3").unwrap();
+    assert_eq!(var3.as_int(), 23);
 }
