@@ -4,6 +4,7 @@ use crate::http_api::HttpRequest;
 use crate::http_api::HttpResponse;
 use crate::script;
 use crate::script::ScriptContext;
+use regex::Regex;
 // use crate::script::ScriptVariable;
 use crate::variable::Value;
 use crate::variable::Variable;
@@ -284,7 +285,46 @@ impl<'a> Scenario<'a> {
 
     // TODO implement this
     pub fn next_request2(&mut self, ctx: &ScriptContext) -> HttpRequest {
-        todo!()
+        let body = match &self.request.body {
+            Some(_body) => None,
+            None => None,
+        };
+
+        let uri = {
+            let mut uri = self.request.uri.clone();
+
+            // TODO move this to init phase
+            let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
+            let mut url_var_name = vec![];
+            for caps in variable_pattern.captures_iter(&uri) {
+                let cap = caps[1].to_string();
+                println!("Found global variable: {}", cap);
+                url_var_name.push(cap);
+            }
+
+            // Apply vairables replace in uri
+            for name in url_var_name {
+                // TODO if not found, return variable not found instead of panic
+                let value = ctx.get_variable(&name).unwrap();
+                let value = match value {
+                    Value::Int(v) => v.to_string(),
+                    Value::String(v) => v,
+                };
+                uri = uri.replace(&format!("${{{}}}", name), &value);
+            }
+            uri
+        };
+
+        // Add base_url to uri
+        let uri = format!("{}{}", self.base_url, uri);
+
+        HttpRequest {
+            uri,
+            method: self.request.method.clone(),
+            headers: self.request.headers.clone(),
+            body,
+            timeout: self.request.timeout.clone(),
+        }
     }
 
     // TODO deprecated
@@ -776,6 +816,45 @@ mod tests {
             request.body,
             Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap())
         );
+    }
+
+    #[test]
+    fn test_scenario_next_request2() {
+        let global = Global { variables: vec![] };
+        let mut headers = HashMap::new();
+        headers.insert("Content-Type".to_string(), "application/json".to_string());
+        let mut scenario = Scenario {
+            name: "Scenario_1".into(),
+            base_url: "http://localhost:8080".into(),
+            global: &global,
+            request: Request {
+                uri: "/endpoint/foo/${foo_id}".into(),
+                method: Method::GET,
+                headers: Some(vec![headers]),
+                body: Some(r#"{"test": "${var1}_${var2}"}"#.into()),
+                timeout: Duration::from_secs(3),
+            },
+            response: Response {
+                status: StatusCode::OK,
+                headers: None,
+                body: None,
+            },
+            response_defines: vec![],
+            assert_panic: false,
+            pre_script2: None,
+            post_script2: None,
+        };
+
+        let mut ctx = ScriptContext::new();
+        ctx.set_variable("foo_id", Value::Int(100));
+
+        let request = scenario.next_request2(&ctx);
+        assert_eq!(request.uri, "http://localhost:8080/endpoint/foo/100");
+        // assert_eq!(request.method, Method::GET);
+        // assert_eq!(
+        //     request.body,
+        //     Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap())
+        // );
     }
 
     #[test]
