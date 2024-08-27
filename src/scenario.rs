@@ -20,9 +20,11 @@ use std::time::Duration;
 #[derive(Clone)]
 pub struct Request {
     pub uri: String,
+    pub uri_var_name: Vec<String>,
     pub method: Method,
     pub headers: Option<Vec<HashMap<String, String>>>,
     pub body: Option<String>,
+    pub body_var_name: Vec<String>,
     // pub body: Option<serde_json::Value>,
     pub timeout: Duration,
 }
@@ -98,30 +100,31 @@ impl<'a> Scenario<'a> {
 
         // let mut global_variables = vec![];
         // log::info!("Creating scenario: {}", config.name);
+        //
+        let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
 
+        // body
+        let mut body_var_name = vec![];
         let body = match &config.request.body {
             Some(body) => {
-                // The idea is to find out if the body contains any global Variables
-                // and add them to the global_variables
-                //
-                // Since Scenario::new is only called at startup, this will help
-                // to avoid the overhead of parsing the body for global variables
-                //
-                //
-                // let source = body;
-                // let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
-                // for caps in variable_pattern.captures_iter(source) {
-                //     let cap = caps[1].to_string();
-                //     log::debug!("Found global variable: {}", cap);
-                //
-                //     // let var = global.get_variable(&cap).unwrap();
-                //     // global_variables.push(var);
-                // }
+                for caps in variable_pattern.captures_iter(&body) {
+                    let cap = caps[1].to_string();
+                    println!("Found global variable in body: {}", cap);
+                    body_var_name.push(cap);
+                }
 
                 Some(body.to_string())
             }
             None => None,
         };
+
+        // url
+        let mut uri_var_name = vec![];
+        for caps in variable_pattern.captures_iter(&config.request.path) {
+            let cap = caps[1].to_string();
+            println!("Found global variable in url: {}", cap);
+            uri_var_name.push(cap);
+        }
 
         //Local Variable
         let mut response_defines = vec![];
@@ -138,9 +141,11 @@ impl<'a> Scenario<'a> {
         // Requets
         let request = Request {
             uri: config.request.path.clone(),
+            uri_var_name,
             method: config.request.method.parse().unwrap(),
             headers: config.request.headers.clone(),
             body,
+            body_var_name,
             timeout: config.request.timeout,
         };
 
@@ -312,16 +317,8 @@ impl<'a> Scenario<'a> {
             Some(body) => {
                 let mut body = body.clone();
 
-                // TODO move this to init phase
-                let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
-                let mut body_var_name = vec![];
-                for caps in variable_pattern.captures_iter(&body) {
-                    let cap = caps[1].to_string();
-                    println!("Found global variable in body: {}", cap);
-                    body_var_name.push(cap);
-                }
-                // Apply vairables replace in uri
-                for name in body_var_name {
+                // Apply vairables replace in body
+                for name in &self.request.body_var_name {
                     let value = self.get_value(&name, ctx, self.global)?;
                     let value = match value {
                         Value::Int(v) => v.to_string(),
@@ -338,17 +335,8 @@ impl<'a> Scenario<'a> {
         let uri = {
             let mut uri = self.request.uri.clone();
 
-            // TODO move this to init phase
-            let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
-            let mut url_var_name = vec![];
-            for caps in variable_pattern.captures_iter(&uri) {
-                let cap = caps[1].to_string();
-                println!("Found global variable in url: {}", cap);
-                url_var_name.push(cap);
-            }
-
             // Apply vairables replace in uri
-            for name in url_var_name {
+            for name in &self.request.uri_var_name {
                 let value = self.get_value(&name, ctx, self.global)?;
                 let value = match value {
                     Value::Int(v) => v.to_string(),
@@ -372,84 +360,84 @@ impl<'a> Scenario<'a> {
     }
 
     // TODO deprecated
-    pub fn next_request(&mut self, new_variables: Vec<Variable>) -> HttpRequest {
-        // Replace variables in the body
-        let body = match &self.request.body {
-            Some(body) => {
-                let variables = &self.global.variables;
-                let body = if variables.len() != 0 {
-                    let mut body = body.clone();
-                    // Apply Global Variables
-                    for v in variables {
-                        let variable = v.lock().unwrap();
-
-                        let value = variable.value.clone();
-
-                        body = match value {
-                            Value::Int(v) => {
-                                body.replace(&format!("${{{}}}", variable.name), &v.to_string())
-                            }
-                            Value::String(v) => {
-                                body.replace(&format!("${{{}}}", variable.name), &v)
-                            }
-                        }
-                    }
-                    // Apply Local Variables
-                    for variable in &new_variables {
-                        let value = &variable.value;
-                        body = match value {
-                            Value::Int(v) => {
-                                body.replace(&format!("${{{}}}", variable.name), &v.to_string())
-                            }
-                            Value::String(v) => {
-                                body.replace(&format!("${{{}}}", variable.name), &v)
-                            }
-                        }
-                    }
-                    body
-                } else {
-                    body.into()
-                };
-
-                Some(serde_json::from_str(&body).unwrap())
-            }
-            None => None,
-        };
-        // log::debug!("Body: {:?}", body);
-
-        let uri = {
-            let mut uri = self.request.uri.clone();
-            // Apply Local Variables
-            for variable in new_variables {
-                // TODO throw error if variable not found
-                // TODO replace regex with something better
-                //
-                let value = variable.value;
-
-                match value {
-                    Value::Int(v) => {
-                        uri = uri.replace(&format!("${{{}}}", variable.name), &v.to_string());
-                    }
-                    Value::String(v) => {
-                        uri = uri.replace(&format!("${{{}}}", variable.name), &v);
-                    }
-                }
-            }
-            uri
-        };
-
-        let uri = format!("{}{}", self.base_url, uri);
-
-        let http_request = HttpRequest {
-            uri,
-            method: self.request.method.clone(),
-            headers: self.request.headers.clone(),
-            body,
-            timeout: self.request.timeout.clone(),
-        };
-
-        http_request
-    }
+    // pub fn next_request(&mut self, new_variables: Vec<Variable>) -> HttpRequest {
+    //     // Replace variables in the body
+    //     let body = match &self.request.body {
+    //         Some(body) => {
+    //             let variables = &self.global.variables;
+    //             let body = if variables.len() != 0 {
+    //                 let mut body = body.clone();
+    //                 // Apply Global Variables
+    //                 for v in variables {
+    //                     let variable = v.lock().unwrap();
+    //
+    //                     let value = variable.value.clone();
+    //
+    //                     body = match value {
+    //                         Value::Int(v) => {
+    //                             body.replace(&format!("${{{}}}", variable.name), &v.to_string())
+    //                         }
+    //                         Value::String(v) => {
+    //                             body.replace(&format!("${{{}}}", variable.name), &v)
+    //                         }
+    //                     }
+    //                 }
+    //                 // Apply Local Variables
+    //                 for variable in &new_variables {
+    //                     let value = &variable.value;
+    //                     body = match value {
+    //                         Value::Int(v) => {
+    //                             body.replace(&format!("${{{}}}", variable.name), &v.to_string())
+    //                         }
+    //                         Value::String(v) => {
+    //                             body.replace(&format!("${{{}}}", variable.name), &v)
+    //                         }
+    //                     }
+    //                 }
+    //                 body
+    //             } else {
+    //                 body.into()
+    //             };
+    //
+    //             Some(serde_json::from_str(&body).unwrap())
+    //         }
+    //         None => None,
+    //     };
+    //     // log::debug!("Body: {:?}", body);
+    //
+    //     let uri = {
+    //         let mut uri = self.request.uri.clone();
+    //         // Apply Local Variables
+    //         for variable in new_variables {
+    //             // TODO throw error if variable not found
+    //             // TODO replace regex with something better
+    //             //
+    //             let value = variable.value;
+    //
+    //             match value {
+    //                 Value::Int(v) => {
+    //                     uri = uri.replace(&format!("${{{}}}", variable.name), &v.to_string());
+    //                 }
+    //                 Value::String(v) => {
+    //                     uri = uri.replace(&format!("${{{}}}", variable.name), &v);
+    //                 }
+    //             }
+    //         }
+    //         uri
+    //     };
+    //
+    //     let uri = format!("{}{}", self.base_url, uri);
+    //
+    //     let http_request = HttpRequest {
+    //         uri,
+    //         method: self.request.method.clone(),
+    //         headers: self.request.headers.clone(),
+    //         body,
+    //         timeout: self.request.timeout.clone(),
+    //     };
+    //
+    //     http_request
+    // }
 
     pub fn assert_response(&self, response: &HttpResponse) -> bool {
         match self.check_response(response) {
@@ -810,57 +798,57 @@ impl Global {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_scenario_next_request() {
-        let new_var1 = Arc::new(Mutex::new(Variable {
-            name: "VAR1".into(),
-            value: Value::Int(0),
-        }));
-
-        let new_var2 = Arc::new(Mutex::new(Variable {
-            name: "VAR2".into(),
-            value: Value::Int(100),
-        }));
-
-        let variables = vec![new_var1, new_var2];
-        let global = Global { variables };
-
-        let mut headers = HashMap::new();
-        headers.insert("Content-Type".to_string(), "application/json".to_string());
-
-        let mut scenario = Scenario {
-            name: "Scenario_1".into(),
-            base_url: "http://localhost:8080".into(),
-            global: &global,
-            request: Request {
-                uri: "/endpoint".into(),
-                method: Method::GET,
-                headers: Some(vec![headers]),
-                body: Some(r#"{"test": "${VAR1}_${VAR2}"}"#.into()),
-                timeout: Duration::from_secs(3),
-            },
-            response: Response {
-                status: StatusCode::OK,
-                headers: None,
-                body: None,
-            },
-            response_defines: vec![],
-            assert_panic: false,
-            // post_script: None,
-            // pre_script: None,
-            pre_script2: None,
-            post_script2: None,
-        };
-
-        // First request
-        let request = scenario.next_request(vec![]);
-        assert_eq!(request.uri, "http://localhost:8080/endpoint");
-        assert_eq!(request.method, Method::GET);
-        assert_eq!(
-            request.body,
-            Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap())
-        );
-    }
+    // #[test]
+    // fn test_scenario_next_request() {
+    //     let new_var1 = Arc::new(Mutex::new(Variable {
+    //         name: "VAR1".into(),
+    //         value: Value::Int(0),
+    //     }));
+    //
+    //     let new_var2 = Arc::new(Mutex::new(Variable {
+    //         name: "VAR2".into(),
+    //         value: Value::Int(100),
+    //     }));
+    //
+    //     let variables = vec![new_var1, new_var2];
+    //     let global = Global { variables };
+    //
+    //     let mut headers = HashMap::new();
+    //     headers.insert("Content-Type".to_string(), "application/json".to_string());
+    //
+    //     let mut scenario = Scenario {
+    //         name: "Scenario_1".into(),
+    //         base_url: "http://localhost:8080".into(),
+    //         global: &global,
+    //         request: Request {
+    //             uri: "/endpoint".into(),
+    //             method: Method::GET,
+    //             headers: Some(vec![headers]),
+    //             body: Some(r#"{"test": "${VAR1}_${VAR2}"}"#.into()),
+    //             timeout: Duration::from_secs(3),
+    //         },
+    //         response: Response {
+    //             status: StatusCode::OK,
+    //             headers: None,
+    //             body: None,
+    //         },
+    //         response_defines: vec![],
+    //         assert_panic: false,
+    //         // post_script: None,
+    //         // pre_script: None,
+    //         pre_script2: None,
+    //         post_script2: None,
+    //     };
+    //
+    //     // First request
+    //     let request = scenario.next_request(vec![]);
+    //     assert_eq!(request.uri, "http://localhost:8080/endpoint");
+    //     assert_eq!(request.method, Method::GET);
+    //     assert_eq!(
+    //         request.body,
+    //         Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap())
+    //     );
+    // }
 
     #[test]
     fn test_scenario_next_request2() {
