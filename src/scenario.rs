@@ -855,15 +855,22 @@ mod tests {
         let global = Global { variables: vec![] };
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
+
+        // TODO: test this as well
+        let uri_var_name = vec!["foo_id".into()];
+        let body_var_name = vec!["var1".into(), "var2".into()];
+
         let mut scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
             request: Request {
                 uri: "/endpoint/foo/${foo_id}".into(),
+                uri_var_name,
                 method: Method::GET,
                 headers: Some(vec![headers]),
                 body: Some(r#"{"test": "${var1}_${var2}"}"#.into()),
+                body_var_name,
                 timeout: Duration::from_secs(3),
             },
             response: Response {
@@ -882,7 +889,7 @@ mod tests {
         ctx.set_variable("var2", Value::Int(100));
         ctx.set_variable("foo_id", Value::String("1-2-3-4".into()));
 
-        let request = scenario.next_request2(&ctx);
+        let request = scenario.next_request2(&ctx).unwrap();
         assert_eq!(request.uri, "http://localhost:8080/endpoint/foo/1-2-3-4");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
@@ -900,9 +907,11 @@ mod tests {
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
+                uri_var_name: vec![],
                 method: Method::GET,
                 headers: None,
                 body: None,
+                body_var_name: vec![],
                 timeout: Duration::from_secs(3),
             },
             response: Response {
@@ -947,9 +956,11 @@ mod tests {
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
+                uri_var_name: vec![],
                 method: Method::GET,
                 headers: None,
                 body: None,
+                body_var_name: vec![],
                 timeout: Duration::from_secs(3),
             },
             response: Response {
@@ -1060,9 +1071,11 @@ mod tests {
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
+                uri_var_name: vec![],
                 method: Method::GET,
                 headers: None,
                 body: None,
+                body_var_name: vec![],
                 timeout: Duration::from_secs(3),
             },
             response: Response {
@@ -1141,9 +1154,11 @@ mod tests {
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
+                uri_var_name: vec![],
                 method: Method::GET,
                 headers: None,
                 body: None,
+                body_var_name: vec![],
                 timeout: Duration::from_secs(3),
             },
             response: Response {
