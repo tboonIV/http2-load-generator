@@ -283,10 +283,55 @@ impl<'a> Scenario<'a> {
         }
     }
 
-    // TODO implement this
-    pub fn next_request2(&mut self, ctx: &ScriptContext) -> HttpRequest {
+    fn get_value(
+        &self,
+        name: &str,
+        ctx: &ScriptContext,
+        global: &Global,
+    ) -> Result<Value, Box<dyn std::error::Error>> {
+        // Check context local
+        let value = ctx.get_variable(name);
+        if let Some(value) = value {
+            return Ok(value.clone());
+        }
+
+        // Check global
+        let value = global.get_variable_value(name);
+        if let Some(value) = value {
+            return Ok(value.clone());
+        }
+
+        Err(format!("Variable '{}' not found", name).into())
+    }
+
+    pub fn next_request2(
+        &mut self,
+        ctx: &ScriptContext,
+    ) -> Result<HttpRequest, Box<dyn std::error::Error>> {
         let body = match &self.request.body {
-            Some(_body) => None,
+            Some(body) => {
+                let mut body = body.clone();
+
+                // TODO move this to init phase
+                let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
+                let mut body_var_name = vec![];
+                for caps in variable_pattern.captures_iter(&body) {
+                    let cap = caps[1].to_string();
+                    println!("Found global variable in body: {}", cap);
+                    body_var_name.push(cap);
+                }
+                // Apply vairables replace in uri
+                for name in body_var_name {
+                    let value = self.get_value(&name, ctx, self.global)?;
+                    let value = match value {
+                        Value::Int(v) => v.to_string(),
+                        Value::String(v) => v,
+                    };
+                    body = body.replace(&format!("${{{}}}", name), &value);
+                }
+
+                Some(serde_json::from_str(&body).unwrap())
+            }
             None => None,
         };
 
@@ -298,14 +343,13 @@ impl<'a> Scenario<'a> {
             let mut url_var_name = vec![];
             for caps in variable_pattern.captures_iter(&uri) {
                 let cap = caps[1].to_string();
-                println!("Found global variable: {}", cap);
+                println!("Found global variable in url: {}", cap);
                 url_var_name.push(cap);
             }
 
             // Apply vairables replace in uri
             for name in url_var_name {
-                // TODO if not found, return variable not found instead of panic
-                let value = ctx.get_variable(&name).unwrap();
+                let value = self.get_value(&name, ctx, self.global)?;
                 let value = match value {
                     Value::Int(v) => v.to_string(),
                     Value::String(v) => v,
@@ -318,13 +362,13 @@ impl<'a> Scenario<'a> {
         // Add base_url to uri
         let uri = format!("{}{}", self.base_url, uri);
 
-        HttpRequest {
+        Ok(HttpRequest {
             uri,
             method: self.request.method.clone(),
             headers: self.request.headers.clone(),
             body,
             timeout: self.request.timeout.clone(),
-        }
+        })
     }
 
     // TODO deprecated
@@ -846,15 +890,17 @@ mod tests {
         };
 
         let mut ctx = ScriptContext::new();
-        ctx.set_variable("foo_id", Value::Int(100));
+        ctx.set_variable("var1", Value::Int(0));
+        ctx.set_variable("var2", Value::Int(100));
+        ctx.set_variable("foo_id", Value::String("1-2-3-4".into()));
 
         let request = scenario.next_request2(&ctx);
-        assert_eq!(request.uri, "http://localhost:8080/endpoint/foo/100");
-        // assert_eq!(request.method, Method::GET);
-        // assert_eq!(
-        //     request.body,
-        //     Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap())
-        // );
+        assert_eq!(request.uri, "http://localhost:8080/endpoint/foo/1-2-3-4");
+        assert_eq!(request.method, Method::GET);
+        assert_eq!(
+            request.body,
+            Some(serde_json::from_str(r#"{"test": "0_100"}"#).unwrap())
+        );
     }
 
     #[test]

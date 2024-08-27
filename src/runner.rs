@@ -133,7 +133,8 @@ impl<'a> Runner<'a> {
                     };
                     variables.push(v);
                 }
-                let http_request = scenario.next_request(variables);
+
+                let http_request = scenario.next_request2(&script_ctx).unwrap();
 
                 let ctx = EventContext {
                     scenario_id: 0,
@@ -201,22 +202,24 @@ impl<'a> Runner<'a> {
                         // TODO append new variables to existing variables
 
                         // Test script context
+                        let http_request: HttpRequest;
                         {
                             let mut script_ctx = ctx.script_ctx.borrow_mut();
                             scenario.run_pre_script2(&mut script_ctx);
+                            http_request = scenario.next_request2(&script_ctx).unwrap();
                         }
 
                         // TODO delete me
-                        let mut variables = vec![];
-                        for (name, v) in &ctx.script_ctx.borrow().get_all_variables() {
-                            let v = Variable {
-                                name: name.to_string(),
-                                value: v.clone(),
-                            };
-                            variables.push(v);
-                        }
+                        // let mut variables = vec![];
+                        // for (name, v) in &ctx.script_ctx.borrow().get_all_variables() {
+                        //     let v = Variable {
+                        //         name: name.to_string(),
+                        //         value: v.clone(),
+                        //     };
+                        //     variables.push(v);
+                        // }
 
-                        let http_request = scenario.next_request(variables.clone());
+                        // let http_request = scenario.next_request(variables.clone());
                         // let http_request = scenario.next_request(variables.clone());
 
                         eventloop_tx
