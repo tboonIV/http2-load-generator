@@ -411,7 +411,7 @@ impl<'a> Scenario<'a> {
         return Ok(());
     }
 
-    pub fn update_variables2(
+    pub fn from_response(
         &self,
         ctx: &mut ScriptContext,
         response: &HttpResponse,
@@ -458,62 +458,6 @@ impl<'a> Scenario<'a> {
             }
         }
         Ok(())
-    }
-
-    pub fn update_variables(&self, response: &HttpResponse) -> Vec<Variable> {
-        let mut values = vec![];
-
-        for v in &self.response_defines {
-            match v.from {
-                DefineFrom::Header => {
-                    let headers = &response.headers;
-                    if let Some(header) = headers.get(&v.path) {
-                        let value = header.to_str().unwrap();
-                        log::debug!(
-                            "Set local var from header: '{}', name: '{}' value: '{}'",
-                            v.path,
-                            v.name,
-                            value,
-                        );
-
-                        let value = Variable {
-                            name: v.name.clone(),
-                            value: Value::String(value.into()), // TODO also support Int
-                        };
-                        values.push(value);
-                    }
-                }
-                DefineFrom::Body => {
-                    if let Some(body) = &response.body {
-                        let value = jsonpath_lib::select(&body, &v.path).unwrap();
-                        let value = value.get(0).unwrap();
-
-                        log::debug!(
-                            "Set local var from json field: '{}', name: '{}' value: '{}'",
-                            v.path,
-                            v.name,
-                            value,
-                        );
-
-                        let value = if value.is_f64() {
-                            Value::Int(value.as_f64().unwrap() as i32)
-                        } else if value.is_i64() {
-                            Value::Int(value.as_i64().unwrap() as i32)
-                        } else {
-                            Value::String(value.as_str().unwrap().to_string())
-                        };
-
-                        let value = Variable {
-                            name: v.name.clone(),
-                            value,
-                        };
-                        values.push(value);
-                    }
-                }
-            }
-        }
-
-        values
     }
 
     pub fn run_pre_script(&self, ctx: &mut ScriptContext) {
@@ -866,7 +810,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scenario_update_variables() {
+    fn test_scenario_from_response() {
         let response_defines = vec![ResponseDefine {
             name: "ObjectId".into(),
             from: DefineFrom::Body,
@@ -899,12 +843,25 @@ mod tests {
             post_script: None,
         };
 
-        scenario.update_variables(&HttpResponse {
-            status: StatusCode::OK,
-            headers: http::HeaderMap::new(),
-            body: Some(serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap()),
-            request_start: std::time::Instant::now(),
-            retry_count: 0,
-        });
+        let mut ctx = ScriptContext::new();
+
+        scenario
+            .from_response(
+                &mut ctx,
+                &HttpResponse {
+                    status: StatusCode::OK,
+                    headers: http::HeaderMap::new(),
+                    body: Some(
+                        serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap(),
+                    ),
+                    request_start: std::time::Instant::now(),
+                    retry_count: 0,
+                },
+            )
+            .unwrap();
+
+        let object_id = ctx.get_variable("ObjectId").unwrap();
+
+        assert_eq!(object_id, Value::String("0-1-2-3".into()));
     }
 }

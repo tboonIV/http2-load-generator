@@ -1,19 +1,11 @@
-// #![allow(dead_code)]
 use crate::config;
 use crate::function;
 use crate::scenario::Global;
 use crate::variable::Value;
-use crate::variable::Variable;
 use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct ScriptError(String);
-
-// #[derive(Debug, Deserialize, Serialize, Clone)]
-pub enum ScriptArgument {
-    Variable(Variable),
-    Constant(Value),
-}
 
 pub struct Local {
     pub variables: HashMap<String, Value>,
@@ -38,11 +30,6 @@ impl ScriptContext {
             return Some(value.clone());
         }
         None
-    }
-
-    // TODO delete me
-    pub fn get_all_variables(&self) -> HashMap<String, Value> {
-        self.local.variables.clone()
     }
 
     pub fn set_variable(&mut self, _name: &str, value: Value) {
@@ -133,7 +120,6 @@ impl Script {
                     return Err(ScriptError("Expects 0 or 1 argument".into()));
                 }
             }
-            // TODO implement other functions
             function::Function::Random(f) => {
                 if self.args.len() == 0 {
                     let value = f.apply();
@@ -173,6 +159,7 @@ impl Script {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::variable::Variable;
 
     // let now = Now()
     #[test]

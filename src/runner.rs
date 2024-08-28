@@ -160,7 +160,7 @@ impl<'a> Runner<'a> {
 
                             // Get new variables from response to pass to next scenario
                             cur_scenario
-                                .update_variables2(&mut script_ctx, &response)
+                                .from_response(&mut script_ctx, &response)
                                 .unwrap();
 
                             // Post scenario
@@ -191,7 +191,7 @@ impl<'a> Runner<'a> {
                             ))
                             .await?;
                     } else {
-                        //log::debug!("All scenarios completed
+                        log::debug!("All scenarios completed");
                     }
                 }
             }
@@ -255,7 +255,6 @@ impl<'a> Runner<'a> {
                         tx.send((
                             EventContext {
                                 scenario_id,
-                                // variables: ctx.variables,
                                 script_ctx: ctx.script_ctx,
                             },
                             response,
