@@ -3,11 +3,12 @@ use crate::function;
 use crate::http_api::HttpRequest;
 use crate::http_api::HttpResponse;
 use crate::script;
-use crate::script::ScriptVariable;
+use crate::script::ScriptContext;
 use crate::variable::Value;
 use crate::variable::Variable;
 use http::Method;
 use http::StatusCode;
+use regex::Regex;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -18,9 +19,11 @@ use std::time::Duration;
 #[derive(Clone)]
 pub struct Request {
     pub uri: String,
+    pub uri_var_name: Vec<String>,
     pub method: Method,
     pub headers: Option<Vec<HashMap<String, String>>>,
     pub body: Option<String>,
+    pub body_var_name: Vec<String>,
     // pub body: Option<serde_json::Value>,
     pub timeout: Duration,
 }
@@ -82,42 +85,35 @@ pub struct Scenario<'a> {
     pub response: Response,
     pub response_defines: Vec<ResponseDefine>,
     pub assert_panic: bool,
-    pub pre_script: Option<script::Script>,
-    pub post_script: Option<script::Script>,
+    pub pre_script: Option<Vec<script::Script>>,
+    pub post_script: Option<Vec<script::Script>>,
 }
 
 impl<'a> Scenario<'a> {
     pub fn new(config: &config::Scenario, base_url: &str, global: &'a Global) -> Self {
-        // Global Variable
-        // let mut new_global_variables = vec![];
-        // TODO
+        // Find variables in body and url
+        let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
 
-        // let mut global_variables = vec![];
-        // log::info!("Creating scenario: {}", config.name);
-
+        // body
+        let mut body_var_name = vec![];
         let body = match &config.request.body {
             Some(body) => {
-                // The idea is to find out if the body contains any global Variables
-                // and add them to the global_variables
-                //
-                // Since Scenario::new is only called at startup, this will help
-                // to avoid the overhead of parsing the body for global variables
-                //
-                //
-                // let source = body;
-                // let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
-                // for caps in variable_pattern.captures_iter(source) {
-                //     let cap = caps[1].to_string();
-                //     log::debug!("Found global variable: {}", cap);
-                //
-                //     // let var = global.get_variable(&cap).unwrap();
-                //     // global_variables.push(var);
-                // }
+                for caps in variable_pattern.captures_iter(&body) {
+                    let cap = caps[1].to_string();
+                    body_var_name.push(cap);
+                }
 
                 Some(body.to_string())
             }
             None => None,
         };
+
+        // url
+        let mut uri_var_name = vec![];
+        for caps in variable_pattern.captures_iter(&config.request.path) {
+            let cap = caps[1].to_string();
+            uri_var_name.push(cap);
+        }
 
         //Local Variable
         let mut response_defines = vec![];
@@ -134,9 +130,11 @@ impl<'a> Scenario<'a> {
         // Requets
         let request = Request {
             uri: config.request.path.clone(),
+            uri_var_name,
             method: config.request.method.parse().unwrap(),
             headers: config.request.headers.clone(),
             body,
+            body_var_name,
             timeout: config.request.timeout,
         };
 
@@ -147,95 +145,26 @@ impl<'a> Scenario<'a> {
             body: config.response.assert.body.clone(),
         };
 
-        // Pre Script
         let pre_script = match &config.pre_script {
-            Some(script) => {
-                let mut script_vars = vec![];
-                for v in &script.variables {
-                    let s_var = ScriptVariable {
-                        name: v.name.clone(),
-                        function: v.function.clone(),
-                    };
-
-                    let mut s_args = vec![];
-                    if let Some(args) = &v.args {
-                        for arg in args {
-                            let value = arg.clone();
-                            if value.is_string() {
-                                // check is arg is a variable
-                                let str = value.as_string();
-                                if str.starts_with('$') {
-                                    let var_name = &str[1..];
-                                    let var = global.get_variable_value(var_name);
-                                    if var.is_none() {
-                                        panic!("Variable '{}' not found", var_name);
-                                    }
-                                    let var = var.unwrap();
-                                    let s_arg = script::ScriptArgument::Variable(Variable {
-                                        name: var_name.into(),
-                                        value: var,
-                                    });
-                                    s_args.push(s_arg);
-                                    continue;
-                                }
-                            }
-                            // arg is constant
-                            let s_arg = script::ScriptArgument::Constant(value);
-                            s_args.push(s_arg);
-                        }
-                    }
-                    script_vars.push((s_var, s_args));
+            Some(s) => {
+                let mut scripts: Vec<script::Script> = vec![];
+                for v in &s.variables {
+                    let script = script::Script::new(v.clone());
+                    scripts.push(script);
                 }
-                Some(script::Script {
-                    variables: script_vars,
-                })
+                Some(scripts)
             }
             None => None,
         };
 
-        // Post Script
-        // TODO remove duplicate
         let post_script = match &config.post_script {
-            Some(script) => {
-                let mut script_vars = vec![];
-                for v in &script.variables {
-                    let s_var = ScriptVariable {
-                        name: v.name.clone(),
-                        function: v.function.clone(),
-                    };
-
-                    let mut s_args = vec![];
-                    if let Some(args) = &v.args {
-                        for arg in args {
-                            let value = arg.clone();
-                            if value.is_string() {
-                                // check is arg is a variable
-                                let str = value.as_string();
-                                if str.starts_with('$') {
-                                    let var_name = &str[1..];
-                                    // let var = global.get_variable_value(var_name);
-                                    // if var.is_none() {
-                                    //     panic!("Variable '{}' not found", var_name);
-                                    // }
-                                    // let var = var.unwrap();
-                                    let s_arg = script::ScriptArgument::Variable(Variable {
-                                        name: var_name.into(),
-                                        value: Value::String("".into()),
-                                    });
-                                    s_args.push(s_arg);
-                                    continue;
-                                }
-                            }
-                            // arg is constant
-                            let s_arg = script::ScriptArgument::Constant(value);
-                            s_args.push(s_arg);
-                        }
-                    }
-                    script_vars.push((s_var, s_args));
+            Some(s) => {
+                let mut scripts: Vec<script::Script> = vec![];
+                for v in &s.variables {
+                    let script = script::Script::new(v.clone());
+                    scripts.push(script);
                 }
-                Some(script::Script {
-                    variables: script_vars,
-                })
+                Some(scripts)
             }
             None => None,
         };
@@ -253,83 +182,75 @@ impl<'a> Scenario<'a> {
         }
     }
 
-    pub fn next_request(&mut self, new_variables: Vec<Variable>) -> HttpRequest {
-        // Replace variables in the body
+    fn get_value(
+        &self,
+        name: &str,
+        ctx: &ScriptContext,
+        global: &Global,
+    ) -> Result<Value, Box<dyn std::error::Error>> {
+        // Check context local
+        let value = ctx.get_variable(name);
+        if let Some(value) = value {
+            return Ok(value.clone());
+        }
+
+        // Check global
+        let value = global.get_variable_value(name);
+        if let Some(value) = value {
+            return Ok(value.clone());
+        }
+
+        Err(format!("Variable '{}' not found", name).into())
+    }
+
+    pub fn next_request2(
+        &mut self,
+        ctx: &ScriptContext,
+    ) -> Result<HttpRequest, Box<dyn std::error::Error>> {
         let body = match &self.request.body {
             Some(body) => {
-                let variables = &self.global.variables;
-                let body = if variables.len() != 0 {
-                    let mut body = body.clone();
-                    // Apply Global Variables
-                    for v in variables {
-                        let variable = v.lock().unwrap();
+                let mut body = body.clone();
 
-                        let value = variable.value.clone();
-
-                        body = match value {
-                            Value::Int(v) => {
-                                body.replace(&format!("${{{}}}", variable.name), &v.to_string())
-                            }
-                            Value::String(v) => {
-                                body.replace(&format!("${{{}}}", variable.name), &v)
-                            }
-                        }
-                    }
-                    // Apply Local Variables
-                    for variable in &new_variables {
-                        let value = &variable.value;
-                        body = match value {
-                            Value::Int(v) => {
-                                body.replace(&format!("${{{}}}", variable.name), &v.to_string())
-                            }
-                            Value::String(v) => {
-                                body.replace(&format!("${{{}}}", variable.name), &v)
-                            }
-                        }
-                    }
-                    body
-                } else {
-                    body.into()
-                };
+                // Apply vairables replace in body
+                for name in &self.request.body_var_name {
+                    let value = self.get_value(&name, ctx, self.global)?;
+                    let value = match value {
+                        Value::Int(v) => v.to_string(),
+                        Value::String(v) => v,
+                    };
+                    body = body.replace(&format!("${{{}}}", name), &value);
+                }
 
                 Some(serde_json::from_str(&body).unwrap())
             }
             None => None,
         };
-        // log::debug!("Body: {:?}", body);
 
         let uri = {
             let mut uri = self.request.uri.clone();
-            // Apply Local Variables
-            for variable in new_variables {
-                // TODO throw error if variable not found
-                // TODO replace regex with something better
-                //
-                let value = variable.value;
 
-                match value {
-                    Value::Int(v) => {
-                        uri = uri.replace(&format!("${{{}}}", variable.name), &v.to_string());
-                    }
-                    Value::String(v) => {
-                        uri = uri.replace(&format!("${{{}}}", variable.name), &v);
-                    }
-                }
+            // Apply vairables replace in uri
+            for name in &self.request.uri_var_name {
+                let value = self.get_value(&name, ctx, self.global)?;
+                let value = match value {
+                    Value::Int(v) => v.to_string(),
+                    Value::String(v) => v,
+                };
+                uri = uri.replace(&format!("${{{}}}", name), &value);
             }
             uri
         };
 
+        // Add base_url to uri
         let uri = format!("{}{}", self.base_url, uri);
 
-        let http_request = HttpRequest {
+        Ok(HttpRequest {
             uri,
             method: self.request.method.clone(),
             headers: self.request.headers.clone(),
             body,
             timeout: self.request.timeout.clone(),
-        };
-
-        http_request
+        })
     }
 
     pub fn assert_response(&self, response: &HttpResponse) -> bool {
@@ -488,9 +409,11 @@ impl<'a> Scenario<'a> {
         return Ok(());
     }
 
-    pub fn update_variables(&self, response: &HttpResponse) -> Vec<Variable> {
-        let mut values = vec![];
-
+    pub fn from_response(
+        &self,
+        ctx: &mut ScriptContext,
+        response: &HttpResponse,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         for v in &self.response_defines {
             match v.from {
                 DefineFrom::Header => {
@@ -503,12 +426,8 @@ impl<'a> Scenario<'a> {
                             v.name,
                             value,
                         );
-
-                        let value = Variable {
-                            name: v.name.clone(),
-                            value: Value::String(value.into()), // TODO also support Int
-                        };
-                        values.push(value);
+                        let value = Value::String(value.into());
+                        ctx.set_variable(&v.name, value);
                     }
                 }
                 DefineFrom::Body => {
@@ -531,98 +450,43 @@ impl<'a> Scenario<'a> {
                             Value::String(value.as_str().unwrap().to_string())
                         };
 
-                        let value = Variable {
-                            name: v.name.clone(),
-                            value,
-                        };
-                        values.push(value);
+                        ctx.set_variable(&v.name, value);
                     }
                 }
             }
         }
-
-        values
+        Ok(())
     }
 
-    // TODO remove duplicate code from run_pre_script and run_post_script
-    //
-    pub fn run_pre_script(&self, new_variables: Vec<Variable>) -> Vec<Variable> {
-        let global_variables = &self.global.variables;
-        let mut script_variables = vec![];
-
-        // copy variables to global_variables
-        for v in global_variables {
-            let variable = v.lock().unwrap();
-            script_variables.push(variable.clone());
-        }
-
-        // Add new variables to script_variables
-        script_variables.extend(new_variables);
+    pub fn run_pre_script(&self, ctx: &mut ScriptContext) {
+        log::debug!("run_pre_script");
 
         if let Some(script) = &self.pre_script {
-            let new_variables = script.exec(script_variables.clone());
-            for nv in new_variables.iter() {
-                // Find out which new varaibles is global variables
-                if let Some(v) = self
-                    .global
-                    .variables
-                    .iter()
-                    .find(|x| x.lock().unwrap().name == nv.name)
-                {
-                    // Update global variable value
-                    //log::debug!("This is global var '{}'", nv.name);
-                    let mut variable = v.lock().unwrap();
-                    variable.update_value(nv.value.clone());
-                }
+            for s in script {
+                s.execute(ctx, &self.global).unwrap();
             }
-            new_variables
-        } else {
-            vec![]
         }
+
+        // print all variables from context
+        // for (k, v) in ctx.local.variables.iter() {
+        //     log::debug!("pre context variable: {} = {:?}", k, v);
+        // }
     }
 
-    pub fn run_post_script(&self, new_variables: Vec<Variable>) -> Vec<Variable> {
-        let global_variables = &self.global.variables;
-        let mut script_variables = vec![];
-
-        // copy variables to global_variables
-        for v in global_variables {
-            let variable = v.lock().unwrap();
-            script_variables.push(variable.clone());
-        }
-
-        // Add new variables to script_variables
-        script_variables.extend(new_variables);
+    pub fn run_post_script(&self, ctx: &mut ScriptContext) {
+        log::debug!("run_post_script");
 
         if let Some(script) = &self.post_script {
-            let new_variables = script.exec(script_variables.clone());
-            for nv in new_variables.iter() {
-                // Find out which new varaibles is global variables
-                if let Some(v) = self
-                    .global
-                    .variables
-                    .iter()
-                    .find(|x| x.lock().unwrap().name == nv.name)
-                {
-                    // Update global variable value
-                    log::debug!("This is global var '{}'", nv.name);
-                    let mut variable = v.lock().unwrap();
-                    variable.update_value(nv.value.clone());
-                }
+            for s in script {
+                s.execute(ctx, &self.global).unwrap();
             }
-            new_variables
-        } else {
-            vec![]
         }
-    }
 
-    // pub fn run_post_script(&self) -> Vec<Variable> {
-    //     if let Some(script) = &self.post_script {
-    //         script.exec()
-    //     } else {
-    //         vec![]
-    //     }
-    // }
+        // print all variables from context
+        // for (k, v) in ctx.local.variables.iter() {
+        //     log::debug!("post context variable: {} = {:?}", k, v);
+        // }
+    }
 }
 
 pub struct Global {
@@ -642,9 +506,9 @@ impl Global {
         Global { variables }
     }
 
-    pub fn add_variable(&mut self, variable: Variable) {
-        self.variables.push(Arc::new(Mutex::new(variable)));
-    }
+    // pub fn add_variable(&mut self, variable: Variable) {
+    //     self.variables.push(Arc::new(Mutex::new(variable)));
+    // }
 
     pub fn get_variable_value(&self, variable_name: &str) -> Option<Value> {
         for v in &self.variables {
@@ -662,32 +526,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_scenario_next_request() {
-        let new_var1 = Arc::new(Mutex::new(Variable {
-            name: "VAR1".into(),
-            value: Value::Int(0),
-        }));
-
-        let new_var2 = Arc::new(Mutex::new(Variable {
-            name: "VAR2".into(),
-            value: Value::Int(100),
-        }));
-
-        let variables = vec![new_var1, new_var2];
-        let global = Global { variables };
-
+    fn test_scenario_next_request2() {
+        let global = Global { variables: vec![] };
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
+
+        // TODO: test this as well
+        let uri_var_name = vec!["foo_id".into()];
+        let body_var_name = vec!["var1".into(), "var2".into()];
 
         let mut scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
             request: Request {
-                uri: "/endpoint".into(),
+                uri: "/endpoint/foo/${foo_id}".into(),
+                uri_var_name,
                 method: Method::GET,
                 headers: Some(vec![headers]),
-                body: Some(r#"{"test": "${VAR1}_${VAR2}"}"#.into()),
+                body: Some(r#"{"test": "${var1}_${var2}"}"#.into()),
+                body_var_name,
                 timeout: Duration::from_secs(3),
             },
             response: Response {
@@ -697,13 +555,17 @@ mod tests {
             },
             response_defines: vec![],
             assert_panic: false,
-            post_script: None,
             pre_script: None,
+            post_script: None,
         };
 
-        // First request
-        let request = scenario.next_request(vec![]);
-        assert_eq!(request.uri, "http://localhost:8080/endpoint");
+        let mut ctx = ScriptContext::new();
+        ctx.set_variable("var1", Value::Int(0));
+        ctx.set_variable("var2", Value::Int(100));
+        ctx.set_variable("foo_id", Value::String("1-2-3-4".into()));
+
+        let request = scenario.next_request2(&ctx).unwrap();
+        assert_eq!(request.uri, "http://localhost:8080/endpoint/foo/1-2-3-4");
         assert_eq!(request.method, Method::GET);
         assert_eq!(
             request.body,
@@ -720,9 +582,11 @@ mod tests {
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
+                uri_var_name: vec![],
                 method: Method::GET,
                 headers: None,
                 body: None,
+                body_var_name: vec![],
                 timeout: Duration::from_secs(3),
             },
             response: Response {
@@ -732,8 +596,8 @@ mod tests {
             },
             response_defines: vec![],
             assert_panic: false,
-            post_script: None,
             pre_script: None,
+            post_script: None,
         };
 
         let response1 = HttpResponse {
@@ -765,9 +629,11 @@ mod tests {
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
+                uri_var_name: vec![],
                 method: Method::GET,
                 headers: None,
                 body: None,
+                body_var_name: vec![],
                 timeout: Duration::from_secs(3),
             },
             response: Response {
@@ -783,8 +649,8 @@ mod tests {
             },
             response_defines: vec![],
             assert_panic: false,
-            post_script: None,
             pre_script: None,
+            post_script: None,
         };
 
         // Missing content-type header
@@ -876,9 +742,11 @@ mod tests {
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
+                uri_var_name: vec![],
                 method: Method::GET,
                 headers: None,
                 body: None,
+                body_var_name: vec![],
                 timeout: Duration::from_secs(3),
             },
             response: Response {
@@ -891,8 +759,8 @@ mod tests {
             },
             response_defines: vec![],
             assert_panic: false,
-            post_script: None,
             pre_script: None,
+            post_script: None,
         };
 
         // Test Missing Field 'Foo'
@@ -940,7 +808,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scenario_update_variables() {
+    fn test_scenario_from_response() {
         let response_defines = vec![ResponseDefine {
             name: "ObjectId".into(),
             from: DefineFrom::Body,
@@ -955,9 +823,11 @@ mod tests {
             global: &global,
             request: Request {
                 uri: "/endpoint".into(),
+                uri_var_name: vec![],
                 method: Method::GET,
                 headers: None,
                 body: None,
+                body_var_name: vec![],
                 timeout: Duration::from_secs(3),
             },
             response: Response {
@@ -967,16 +837,29 @@ mod tests {
             },
             response_defines,
             assert_panic: false,
-            post_script: None,
             pre_script: None,
+            post_script: None,
         };
 
-        scenario.update_variables(&HttpResponse {
-            status: StatusCode::OK,
-            headers: http::HeaderMap::new(),
-            body: Some(serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap()),
-            request_start: std::time::Instant::now(),
-            retry_count: 0,
-        });
+        let mut ctx = ScriptContext::new();
+
+        scenario
+            .from_response(
+                &mut ctx,
+                &HttpResponse {
+                    status: StatusCode::OK,
+                    headers: http::HeaderMap::new(),
+                    body: Some(
+                        serde_json::from_str(r#"{"Result": 0, "ObjectId": "0-1-2-3"}"#).unwrap(),
+                    ),
+                    request_start: std::time::Instant::now(),
+                    retry_count: 0,
+                },
+            )
+            .unwrap();
+
+        let object_id = ctx.get_variable("ObjectId").unwrap();
+
+        assert_eq!(object_id, &Value::String("0-1-2-3".into()));
     }
 }

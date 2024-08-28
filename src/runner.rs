@@ -3,11 +3,12 @@ use crate::config::RunnerConfig;
 use crate::http_api::{send_request, HttpRequest, HttpResponse};
 use crate::scenario::Global;
 use crate::scenario::Scenario;
+use crate::script::ScriptContext;
 use crate::stats::ApiStats;
-use crate::variable::Variable;
 use bytes::Bytes;
 use h2::client;
 use h2::client::SendRequest;
+use std::cell::RefCell;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
@@ -113,13 +114,16 @@ impl<'a> Runner<'a> {
                 let scenario = &mut self.first_scenario;
                 log::debug!("Running scenario #0: {}", scenario.name);
 
-                // Pre Script
-                let variables = scenario.run_pre_script(vec![]);
-                let http_request = scenario.next_request(variables.clone());
+                // First Pre Script
+                let mut script_ctx = ScriptContext::new();
+                scenario.run_pre_script(&mut script_ctx);
+
+                // First HTTP request
+                let http_request = scenario.next_request2(&script_ctx).unwrap();
 
                 let ctx = EventContext {
                     scenario_id: 0,
-                    variables,
+                    script_ctx: RefCell::new(script_ctx),
                 };
                 eventloop_tx
                     .send(Event::SendMessage(ctx, http_request, resp_tx.clone()))
@@ -142,9 +146,6 @@ impl<'a> Runner<'a> {
                         &self.subsequent_scenarios[scenario_id - 1]
                     };
 
-                    // let mut new_variable_values = vec![];
-                    let mut variables = ctx.variables;
-
                     if !cur_scenario.assert_response(&response) {
                         // Error Stats
                         api_stats.inc_error();
@@ -154,40 +155,43 @@ impl<'a> Runner<'a> {
                         api_stats.inc_rtt(round_trip_time);
                         api_stats.inc_success();
 
-                        // Get new variables from response to pass to next scenario
-                        let new_variables = cur_scenario.update_variables(&response);
-                        variables.extend(new_variables);
-                    }
+                        {
+                            let mut script_ctx = ctx.script_ctx.borrow_mut();
 
-                    // Post scenario
-                    let new_variables = cur_scenario.run_post_script(variables.clone());
-                    variables.extend(new_variables);
+                            // Get new variables from response to pass to next scenario
+                            cur_scenario
+                                .from_response(&mut script_ctx, &response)
+                                .unwrap();
+
+                            // Post scenario
+                            cur_scenario.run_post_script(&mut script_ctx);
+                        }
+                    }
 
                     // Check if there are subsequent scenarios
                     if let Some(scenario) = self.subsequent_scenarios.get_mut(scenario_id) {
                         log::debug!("Running scenario #{}: {}", scenario_id + 1, scenario.name);
 
                         // Pre Script
-                        // let variables = scenario.run_pre_script();
-                        // TODO append new variables to existing variables
-
-                        // for variable in &variables {
-                        //     log::debug!("Variable: {:?}", variable);
-                        // }
-                        let http_request = scenario.next_request(variables.clone());
+                        let http_request: HttpRequest;
+                        {
+                            let mut script_ctx = ctx.script_ctx.borrow_mut();
+                            scenario.run_pre_script(&mut script_ctx);
+                            http_request = scenario.next_request2(&script_ctx).unwrap();
+                        }
 
                         eventloop_tx
                             .send(Event::SendMessage(
                                 EventContext {
                                     scenario_id: scenario_id + 1,
-                                    variables,
+                                    script_ctx: ctx.script_ctx,
                                 },
                                 http_request,
                                 resp_tx.clone(),
                             ))
                             .await?;
                     } else {
-                        //log::debug!("All scenarios completed
+                        log::debug!("All scenarios completed");
                     }
                 }
             }
@@ -251,7 +255,7 @@ impl<'a> Runner<'a> {
                         tx.send((
                             EventContext {
                                 scenario_id,
-                                variables: ctx.variables,
+                                script_ctx: ctx.script_ctx,
                             },
                             response,
                         ))
@@ -271,7 +275,7 @@ impl<'a> Runner<'a> {
 
 struct EventContext {
     scenario_id: usize,
-    variables: Vec<Variable>,
+    script_ctx: RefCell<ScriptContext>,
 }
 
 enum Event {

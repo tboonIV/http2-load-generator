@@ -7,11 +7,12 @@ pub struct Variable {
     pub value: Value,
 }
 
-impl Variable {
-    pub fn update_value(&mut self, value: Value) {
-        self.value = value;
-    }
-}
+// TODO remove?
+// impl Variable {
+//     pub fn update_value(&mut self, value: Value) {
+//         self.value = value;
+//     }
+// }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(untagged)]
