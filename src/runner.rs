@@ -6,7 +6,6 @@ use crate::scenario::Scenario;
 use crate::script::ScriptContext;
 use crate::stats::ApiStats;
 use crate::variable::Value;
-use crate::variable::Variable;
 use bytes::Bytes;
 use h2::client;
 use h2::client::SendRequest;
@@ -117,28 +116,13 @@ impl<'a> Runner<'a> {
                 log::debug!("Running scenario #0: {}", scenario.name);
 
                 // Pre Script
-                // let variables = scenario.run_pre_script(vec![]);
-                // let http_request = scenario.next_request(variables.clone());
-
-                // TODO Replace run_pre_script with this method
                 let mut script_ctx = ScriptContext::new();
                 scenario.run_pre_script(&mut script_ctx);
-
-                // TODO delete me
-                let mut variables = vec![];
-                for (name, v) in &script_ctx.get_all_variables() {
-                    let v = Variable {
-                        name: name.to_string(),
-                        value: v.clone(),
-                    };
-                    variables.push(v);
-                }
 
                 let http_request = scenario.next_request2(&script_ctx).unwrap();
 
                 let ctx = EventContext {
                     scenario_id: 0,
-                    // variables,
                     script_ctx: RefCell::new(script_ctx),
                 };
                 eventloop_tx
@@ -162,9 +146,6 @@ impl<'a> Runner<'a> {
                         &self.subsequent_scenarios[scenario_id - 1]
                     };
 
-                    // let mut new_variable_values = vec![];
-                    // let mut variables = ctx.variables;
-
                     if !cur_scenario.assert_response(&response) {
                         // Error Stats
                         api_stats.inc_error();
@@ -174,23 +155,18 @@ impl<'a> Runner<'a> {
                         api_stats.inc_rtt(round_trip_time);
                         api_stats.inc_success();
 
-                        // Get new variables from response to pass to next scenario
-                        // let new_variables = cur_scenario.update_variables(&response);
-                        // variables.extend(new_variables);
-                    }
-
-                    // Post scenario
-                    // let new_variables = cur_scenario.run_post_script(variables.clone());
-                    // variables.extend(new_variables);
-
-                    {
-                        let mut script_ctx = ctx.script_ctx.borrow_mut();
-                        // TODO: remove hard code
-                        script_ctx.set_variable(
-                            "location",
-                            Value::String("http://localhost:9089/1234567890".to_string()),
-                        );
-                        cur_scenario.run_post_script(&mut script_ctx);
+                        {
+                            let mut script_ctx = ctx.script_ctx.borrow_mut();
+                            // Get new variables from response to pass to next scenario
+                            let _ = cur_scenario.update_variables2(&mut script_ctx, &response);
+                            //     // TODO: remove hard code
+                            script_ctx.set_variable(
+                                "location",
+                                Value::String("http://localhost:9089/1234567890".to_string()),
+                            );
+                            // Post scenario
+                            cur_scenario.run_post_script(&mut script_ctx);
+                        }
                     }
 
                     // Check if there are subsequent scenarios
@@ -198,10 +174,6 @@ impl<'a> Runner<'a> {
                         log::debug!("Running scenario #{}: {}", scenario_id + 1, scenario.name);
 
                         // Pre Script
-                        // let variables = scenario.run_pre_script();
-                        // TODO append new variables to existing variables
-
-                        // Test script context
                         let http_request: HttpRequest;
                         {
                             let mut script_ctx = ctx.script_ctx.borrow_mut();
@@ -209,24 +181,10 @@ impl<'a> Runner<'a> {
                             http_request = scenario.next_request2(&script_ctx).unwrap();
                         }
 
-                        // TODO delete me
-                        // let mut variables = vec![];
-                        // for (name, v) in &ctx.script_ctx.borrow().get_all_variables() {
-                        //     let v = Variable {
-                        //         name: name.to_string(),
-                        //         value: v.clone(),
-                        //     };
-                        //     variables.push(v);
-                        // }
-
-                        // let http_request = scenario.next_request(variables.clone());
-                        // let http_request = scenario.next_request(variables.clone());
-
                         eventloop_tx
                             .send(Event::SendMessage(
                                 EventContext {
                                     scenario_id: scenario_id + 1,
-                                    // variables,
                                     script_ctx: ctx.script_ctx,
                                 },
                                 http_request,
@@ -319,7 +277,6 @@ impl<'a> Runner<'a> {
 
 struct EventContext {
     scenario_id: usize,
-    // variables: Vec<Variable>, // TODO replace this with script_ctx
     script_ctx: RefCell<ScriptContext>,
 }
 

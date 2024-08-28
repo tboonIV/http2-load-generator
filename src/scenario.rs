@@ -411,6 +411,15 @@ impl<'a> Scenario<'a> {
         return Ok(());
     }
 
+    pub fn update_variables2(
+        &self,
+        _ctx: &mut ScriptContext,
+        _response: &HttpResponse,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // TODO
+        Ok(())
+    }
+
     pub fn update_variables(&self, response: &HttpResponse) -> Vec<Variable> {
         let mut values = vec![];
 
