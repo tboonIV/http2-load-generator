@@ -5,7 +5,6 @@ use crate::scenario::Global;
 use crate::scenario::Scenario;
 use crate::script::ScriptContext;
 use crate::stats::ApiStats;
-use crate::variable::Value;
 use bytes::Bytes;
 use h2::client;
 use h2::client::SendRequest;
@@ -115,10 +114,11 @@ impl<'a> Runner<'a> {
                 let scenario = &mut self.first_scenario;
                 log::debug!("Running scenario #0: {}", scenario.name);
 
-                // Pre Script
+                // First Pre Script
                 let mut script_ctx = ScriptContext::new();
                 scenario.run_pre_script(&mut script_ctx);
 
+                // First HTTP request
                 let http_request = scenario.next_request2(&script_ctx).unwrap();
 
                 let ctx = EventContext {

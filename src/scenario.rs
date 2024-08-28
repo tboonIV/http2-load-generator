@@ -100,7 +100,6 @@ impl<'a> Scenario<'a> {
             Some(body) => {
                 for caps in variable_pattern.captures_iter(&body) {
                     let cap = caps[1].to_string();
-                    println!("Found global variable in body: {}", cap);
                     body_var_name.push(cap);
                 }
 
@@ -113,7 +112,6 @@ impl<'a> Scenario<'a> {
         let mut uri_var_name = vec![];
         for caps in variable_pattern.captures_iter(&config.request.path) {
             let cap = caps[1].to_string();
-            println!("Found global variable in url: {}", cap);
             uri_var_name.push(cap);
         }
 
@@ -465,14 +463,14 @@ impl<'a> Scenario<'a> {
 
         if let Some(script) = &self.pre_script {
             for s in script {
-                s.exec2(ctx, &self.global).unwrap();
+                s.execute(ctx, &self.global).unwrap();
             }
         }
 
         // print all variables from context
-        for (k, v) in ctx.local.variables.iter() {
-            log::debug!("pre context variable: {} = {:?}", k, v);
-        }
+        // for (k, v) in ctx.local.variables.iter() {
+        //     log::debug!("pre context variable: {} = {:?}", k, v);
+        // }
     }
 
     pub fn run_post_script(&self, ctx: &mut ScriptContext) {
@@ -480,14 +478,14 @@ impl<'a> Scenario<'a> {
 
         if let Some(script) = &self.post_script {
             for s in script {
-                s.exec2(ctx, &self.global).unwrap();
+                s.execute(ctx, &self.global).unwrap();
             }
         }
 
         // print all variables from context
-        for (k, v) in ctx.local.variables.iter() {
-            log::debug!("post context variable: {} = {:?}", k, v);
-        }
+        // for (k, v) in ctx.local.variables.iter() {
+        //     log::debug!("post context variable: {} = {:?}", k, v);
+        // }
     }
 }
 
@@ -508,9 +506,9 @@ impl Global {
         Global { variables }
     }
 
-    pub fn add_variable(&mut self, variable: Variable) {
-        self.variables.push(Arc::new(Mutex::new(variable)));
-    }
+    // pub fn add_variable(&mut self, variable: Variable) {
+    //     self.variables.push(Arc::new(Mutex::new(variable)));
+    // }
 
     pub fn get_variable_value(&self, variable_name: &str) -> Option<Value> {
         for v in &self.variables {
@@ -862,6 +860,6 @@ mod tests {
 
         let object_id = ctx.get_variable("ObjectId").unwrap();
 
-        assert_eq!(object_id, Value::String("0-1-2-3".into()));
+        assert_eq!(object_id, &Value::String("0-1-2-3".into()));
     }
 }

@@ -1,11 +1,12 @@
 use crate::config;
+use crate::error::Error;
 use crate::function;
 use crate::scenario::Global;
 use crate::variable::Value;
 use std::collections::HashMap;
 
-#[derive(Debug)]
-pub struct ScriptError(String);
+// #[derive(Debug)]
+// pub struct ScriptError(String);
 
 pub struct Local {
     pub variables: HashMap<String, Value>,
@@ -23,11 +24,11 @@ impl ScriptContext {
         ScriptContext { local }
     }
 
-    pub fn get_variable(&self, name: &str) -> Option<Value> {
+    pub fn get_variable(&self, name: &str) -> Option<&Value> {
         let value = self.local.variables.get(name);
         // Get from local first
         if let Some(value) = value {
-            return Some(value.clone());
+            return Some(value);
         }
         None
     }
@@ -37,15 +38,15 @@ impl ScriptContext {
     }
 }
 
-pub enum Variable2 {
+pub enum ScriptVariable {
     Variable(String),
     Constant(Value),
 }
 
-impl Variable2 {
-    pub fn get_value(&self, ctx: &ScriptContext, global: &Global) -> Result<Value, ScriptError> {
+impl ScriptVariable {
+    pub fn get_value(&self, ctx: &ScriptContext, global: &Global) -> Result<Value, Error> {
         match self {
-            Variable2::Variable(name) => {
+            ScriptVariable::Variable(name) => {
                 // Check context local
                 let value = ctx.get_variable(name);
                 if let Some(value) = value {
@@ -58,9 +59,9 @@ impl Variable2 {
                     return Ok(value.clone());
                 }
 
-                Err(ScriptError(format!("Variable '{}' not found", name)))
+                Err(Error::ScriptError(format!("Variable '{}' not found", name)))
             }
-            Variable2::Constant(v) => Ok(v.clone()),
+            ScriptVariable::Constant(v) => Ok(v.clone()),
         }
     }
 }
@@ -68,7 +69,7 @@ impl Variable2 {
 pub struct Script {
     pub return_var_name: String,
     pub function: function::Function,
-    pub args: Vec<Variable2>,
+    pub args: Vec<ScriptVariable>,
 }
 
 impl Script {
@@ -80,11 +81,11 @@ impl Script {
                     let str_arg = arg.as_string();
                     if str_arg.starts_with("$") {
                         let var_name = &str_arg[1..];
-                        args.push(Variable2::Variable(var_name.into()));
+                        args.push(ScriptVariable::Variable(var_name.into()));
                         continue;
                     }
                 }
-                let arg = Variable2::Constant(arg);
+                let arg = ScriptVariable::Constant(arg);
                 args.push(arg);
             }
         }
@@ -95,7 +96,7 @@ impl Script {
         }
     }
 
-    pub fn exec2(&self, ctx: &mut ScriptContext, global: &Global) -> Result<(), ScriptError> {
+    pub fn execute(&self, ctx: &mut ScriptContext, global: &Global) -> Result<(), Error> {
         let value = match &self.function {
             function::Function::Plus(f) => {
                 if self.args.len() == 2 {
@@ -104,7 +105,7 @@ impl Script {
                     let value = f.apply(arg0, arg1);
                     Value::Int(value)
                 } else {
-                    return Err(ScriptError("Expects 2 arguments".into()));
+                    return Err(Error::ScriptError("Expects 2 arguments".into()));
                 }
             }
             function::Function::Now(f) => {
@@ -117,7 +118,7 @@ impl Script {
                     let value = f.apply(None);
                     Value::String(value)
                 } else {
-                    return Err(ScriptError("Expects 0 or 1 argument".into()));
+                    return Err(Error::ScriptError("Expects 0 or 1 argument".into()));
                 }
             }
             function::Function::Random(f) => {
@@ -125,7 +126,7 @@ impl Script {
                     let value = f.apply();
                     Value::Int(value)
                 } else {
-                    return Err(ScriptError("Expects 0 arguments".into()));
+                    return Err(Error::ScriptError("Expects 0 arguments".into()));
                 }
             }
             function::Function::Split(f) => {
@@ -135,7 +136,7 @@ impl Script {
                     let value = f.apply(arg0);
                     Value::String(value)
                 } else {
-                    return Err(ScriptError("Expects 1 argument".into()));
+                    return Err(Error::ScriptError("Expects 1 argument".into()));
                 }
             }
             function::Function::Copy(f) => {
@@ -144,7 +145,7 @@ impl Script {
                     let value = f.apply(&arg0);
                     value
                 } else {
-                    return Err(ScriptError("Expects 1 argument".into()));
+                    return Err(Error::ScriptError("Expects 1 argument".into()));
                 }
             }
         };
@@ -160,6 +161,7 @@ impl Script {
 mod tests {
     use super::*;
     use crate::variable::Variable;
+    use std::sync::{Arc, Mutex};
 
     // let now = Now()
     #[test]
@@ -171,7 +173,7 @@ mod tests {
             args: Some(vec![Value::String("%Y-%m-%d".to_string())]),
         });
         let mut ctx = ScriptContext::new();
-        script.exec2(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &global).unwrap();
         let result = ctx.get_variable("now").unwrap();
         let value = result.as_string();
 
@@ -190,7 +192,8 @@ mod tests {
             args: Some(vec![]),
         });
         let mut ctx = ScriptContext::new();
-        script.exec2(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &global).unwrap();
+
         let result = ctx.get_variable("random").unwrap();
         let value = result.as_int();
         assert!(value >= 1 && value <= 10);
@@ -207,7 +210,8 @@ mod tests {
         });
         let mut ctx = ScriptContext::new();
         ctx.set_variable("var2", Value::Int(123456789));
-        script.exec2(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &global).unwrap();
+
         let result = ctx.get_variable("var1").unwrap();
         assert_eq!(result.as_int(), 123456789);
     }
@@ -225,7 +229,8 @@ mod tests {
             args: Some(vec![Value::String("123:456".to_string())]),
         });
         let mut ctx = ScriptContext::new();
-        script.exec2(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &global).unwrap();
+
         let result = ctx.get_variable("chargingDataRef").unwrap();
         assert_eq!(result.as_string(), "456");
     }
@@ -240,65 +245,46 @@ mod tests {
             args: Some(vec![Value::Int(1), Value::Int(2)]),
         });
         let mut ctx = ScriptContext::new();
-        script.exec2(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &global).unwrap();
+
         let imsi = ctx.get_variable("imsi").unwrap();
         assert_eq!(imsi.as_int(), 3);
     }
 
+    // local var2 = 22
+    // local var3 = var2 + 1
     #[test]
-    fn test_script_exec2_now() {
-        let global = Global { variables: vec![] };
-        let script = Script::new(config::ScriptVariable {
-            name: "now".to_string(),
-            function: function::Function::Now(function::NowFunction {}),
-            args: Some(vec![]),
-        });
-        let mut ctx = ScriptContext::new();
-        script.exec2(&mut ctx, &global).unwrap();
-        let now = ctx.get_variable("now").unwrap();
-
-        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        assert!(now.as_string().len() > 0);
-        assert!(now.as_string().starts_with(&today));
-    }
-
-    #[test]
-    fn test_script_exec2_plus_constant() {
-        // Global
+    fn test_script_plus_constant_and_var() {
         let global = Global { variables: vec![] };
 
-        // local var2 = 22
-        // local var3 = var2 + 1
-        //
         let script = Script::new(config::ScriptVariable {
             name: "var3".to_string(),
             function: function::Function::Plus(function::PlusFunction {}),
             args: Some(vec![Value::String("$var2".to_string()), Value::Int(1)]),
         });
 
-        // Script Context
         let mut ctx = ScriptContext::new();
         ctx.set_variable("var2", Value::Int(22));
-
-        script.exec2(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &global).unwrap();
 
         let var3 = ctx.get_variable("var3").unwrap();
         assert_eq!(var3.as_int(), 23);
     }
 
+    // global VAR1 = 11
+    // local var2 = 22
+    // local var3 = VAR1 + var2
     #[test]
-    fn test_script_exec2_plus_global_var() {
+    fn test_script_plus_global_var() {
         // Global
-        let mut global = Global { variables: vec![] };
-        global.add_variable(Variable {
+        let var1 = Arc::new(Mutex::new(Variable {
             name: "VAR1".into(),
             value: Value::Int(11),
-        });
+        }));
+        let global = Global {
+            variables: vec![var1],
+        };
 
-        // global VAR1 = 11
-        // local var2 = 22
-        // local var3 = VAR1 + var2
-        //
         let script = Script::new(config::ScriptVariable {
             name: "var3".to_string(),
             function: function::Function::Plus(function::PlusFunction {}),
@@ -308,34 +294,11 @@ mod tests {
             ]),
         });
 
-        // Script Context
         let mut ctx = ScriptContext::new();
         ctx.set_variable("var2", Value::Int(22));
-
-        script.exec2(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &global).unwrap();
 
         let var3 = ctx.get_variable("var3").unwrap();
         assert_eq!(var3.as_int(), 33);
     }
-}
-
-#[test]
-fn test_script2_exec2() {
-    let global = Global { variables: vec![] };
-
-    // local var2 = 22
-    // local var3 = var2 + 1
-    let script = Script::new(config::ScriptVariable {
-        name: "var3".to_string(),
-        function: function::Function::Plus(function::PlusFunction {}),
-        args: Some(vec![Value::String("$var2".to_string()), Value::Int(1)]),
-    });
-
-    let mut ctx = ScriptContext::new();
-    ctx.set_variable("var2", Value::Int(22));
-
-    script.exec2(&mut ctx, &global).unwrap();
-
-    let var3 = ctx.get_variable("var3").unwrap();
-    assert_eq!(var3.as_int(), 23);
 }
