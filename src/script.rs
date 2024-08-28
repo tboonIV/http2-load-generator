@@ -78,13 +78,13 @@ impl Variable2 {
     }
 }
 
-pub struct Script2 {
+pub struct Script {
     pub return_var_name: String,
     pub function: function::Function,
     pub args: Vec<Variable2>,
 }
 
-impl Script2 {
+impl Script {
     pub fn new(config: config::ScriptVariable) -> Self {
         let mut args = vec![];
         if let Some(config_args) = config.args {
@@ -101,7 +101,7 @@ impl Script2 {
                 args.push(arg);
             }
         }
-        Script2 {
+        Script {
             return_var_name: config.name,
             function: config.function,
             args,
@@ -178,7 +178,7 @@ mod tests {
     #[test]
     fn test_script_now() {
         let global = Global { variables: vec![] };
-        let script = Script2::new(config::ScriptVariable {
+        let script = Script::new(config::ScriptVariable {
             name: "now".to_string(),
             function: function::Function::Now(function::NowFunction {}),
             args: Some(vec![Value::String("%Y-%m-%d".to_string())]),
@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn test_script_random() {
         let global = Global { variables: vec![] };
-        let script = Script2::new(config::ScriptVariable {
+        let script = Script::new(config::ScriptVariable {
             name: "random".to_string(),
             function: function::Function::Random(function::RandomFunction { min: 1, max: 10 }),
             args: Some(vec![]),
@@ -213,7 +213,7 @@ mod tests {
     #[test]
     fn test_script_copy() {
         let global = Global { variables: vec![] };
-        let script = Script2::new(config::ScriptVariable {
+        let script = Script::new(config::ScriptVariable {
             name: "var1".to_string(),
             function: function::Function::Copy(function::CopyFunction {}),
             args: Some(vec![Value::String("$var2".to_string())]),
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn test_script_split() {
         let global = Global { variables: vec![] };
-        let script = Script2::new(config::ScriptVariable {
+        let script = Script::new(config::ScriptVariable {
             name: "chargingDataRef".to_string(),
             function: function::Function::Split(function::SplitFunction {
                 delimiter: ":".to_string(),
@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn test_script_plus_constant() {
         let global = Global { variables: vec![] };
-        let script = Script2::new(config::ScriptVariable {
+        let script = Script::new(config::ScriptVariable {
             name: "imsi".to_string(),
             function: function::Function::Plus(function::PlusFunction {}),
             args: Some(vec![Value::Int(1), Value::Int(2)]),
@@ -261,7 +261,7 @@ mod tests {
     #[test]
     fn test_script_exec2_now() {
         let global = Global { variables: vec![] };
-        let script = Script2::new(config::ScriptVariable {
+        let script = Script::new(config::ScriptVariable {
             name: "now".to_string(),
             function: function::Function::Now(function::NowFunction {}),
             args: Some(vec![]),
@@ -283,7 +283,7 @@ mod tests {
         // local var2 = 22
         // local var3 = var2 + 1
         //
-        let script = Script2::new(config::ScriptVariable {
+        let script = Script::new(config::ScriptVariable {
             name: "var3".to_string(),
             function: function::Function::Plus(function::PlusFunction {}),
             args: Some(vec![Value::String("$var2".to_string()), Value::Int(1)]),
@@ -312,7 +312,7 @@ mod tests {
         // local var2 = 22
         // local var3 = VAR1 + var2
         //
-        let script = Script2::new(config::ScriptVariable {
+        let script = Script::new(config::ScriptVariable {
             name: "var3".to_string(),
             function: function::Function::Plus(function::PlusFunction {}),
             args: Some(vec![
@@ -338,7 +338,7 @@ fn test_script2_exec2() {
 
     // local var2 = 22
     // local var3 = var2 + 1
-    let script = Script2::new(config::ScriptVariable {
+    let script = Script::new(config::ScriptVariable {
         name: "var3".to_string(),
         function: function::Function::Plus(function::PlusFunction {}),
         args: Some(vec![Value::String("$var2".to_string()), Value::Int(1)]),

@@ -122,7 +122,7 @@ impl<'a> Runner<'a> {
 
                 // TODO Replace run_pre_script with this method
                 let mut script_ctx = ScriptContext::new();
-                scenario.run_pre_script2(&mut script_ctx);
+                scenario.run_pre_script(&mut script_ctx);
 
                 // TODO delete me
                 let mut variables = vec![];
@@ -190,7 +190,7 @@ impl<'a> Runner<'a> {
                             "location",
                             Value::String("http://localhost:9089/1234567890".to_string()),
                         );
-                        cur_scenario.run_post_script2(&mut script_ctx);
+                        cur_scenario.run_post_script(&mut script_ctx);
                     }
 
                     // Check if there are subsequent scenarios
@@ -205,7 +205,7 @@ impl<'a> Runner<'a> {
                         let http_request: HttpRequest;
                         {
                             let mut script_ctx = ctx.script_ctx.borrow_mut();
-                            scenario.run_pre_script2(&mut script_ctx);
+                            scenario.run_pre_script(&mut script_ctx);
                             http_request = scenario.next_request2(&script_ctx).unwrap();
                         }
 
