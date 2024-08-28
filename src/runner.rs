@@ -157,13 +157,12 @@ impl<'a> Runner<'a> {
 
                         {
                             let mut script_ctx = ctx.script_ctx.borrow_mut();
+
                             // Get new variables from response to pass to next scenario
-                            let _ = cur_scenario.update_variables2(&mut script_ctx, &response);
-                            //     // TODO: remove hard code
-                            script_ctx.set_variable(
-                                "location",
-                                Value::String("http://localhost:9089/1234567890".to_string()),
-                            );
+                            cur_scenario
+                                .update_variables2(&mut script_ctx, &response)
+                                .unwrap();
+
                             // Post scenario
                             cur_scenario.run_post_script(&mut script_ctx);
                         }

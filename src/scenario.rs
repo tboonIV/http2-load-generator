@@ -413,10 +413,50 @@ impl<'a> Scenario<'a> {
 
     pub fn update_variables2(
         &self,
-        _ctx: &mut ScriptContext,
-        _response: &HttpResponse,
+        ctx: &mut ScriptContext,
+        response: &HttpResponse,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // TODO
+        for v in &self.response_defines {
+            match v.from {
+                DefineFrom::Header => {
+                    let headers = &response.headers;
+                    if let Some(header) = headers.get(&v.path) {
+                        let value = header.to_str().unwrap();
+                        log::debug!(
+                            "Set local var from header: '{}', name: '{}' value: '{}'",
+                            v.path,
+                            v.name,
+                            value,
+                        );
+                        let value = Value::String(value.into());
+                        ctx.set_variable(&v.name, value);
+                    }
+                }
+                DefineFrom::Body => {
+                    if let Some(body) = &response.body {
+                        let value = jsonpath_lib::select(&body, &v.path).unwrap();
+                        let value = value.get(0).unwrap();
+
+                        log::debug!(
+                            "Set local var from json field: '{}', name: '{}' value: '{}'",
+                            v.path,
+                            v.name,
+                            value,
+                        );
+
+                        let value = if value.is_f64() {
+                            Value::Int(value.as_f64().unwrap() as i32)
+                        } else if value.is_i64() {
+                            Value::Int(value.as_i64().unwrap() as i32)
+                        } else {
+                            Value::String(value.as_str().unwrap().to_string())
+                        };
+
+                        ctx.set_variable(&v.name, value);
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
