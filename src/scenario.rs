@@ -92,28 +92,9 @@ pub struct Scenario<'a> {
 impl<'a> Scenario<'a> {
     pub fn new(config: &config::Scenario, base_url: &str, global: &'a Global) -> Self {
         // Find variables in body and url
-        let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
-
-        // body
-        let mut body_var_name = vec![];
-        let body = match &config.request.body {
-            Some(body) => {
-                for caps in variable_pattern.captures_iter(&body) {
-                    let cap = caps[1].to_string();
-                    body_var_name.push(cap);
-                }
-
-                Some(body.to_string())
-            }
-            None => None,
-        };
-
-        // url
-        let mut uri_var_name = vec![];
-        for caps in variable_pattern.captures_iter(&config.request.path) {
-            let cap = caps[1].to_string();
-            uri_var_name.push(cap);
-        }
+        let body_var_name =
+            Scenario::find_variable_name(&config.request.body.clone().unwrap_or_default());
+        let uri_var_name = Scenario::find_variable_name(&config.request.path);
 
         //Local Variable
         let mut response_defines = vec![];
@@ -133,7 +114,7 @@ impl<'a> Scenario<'a> {
             uri_var_name,
             method: config.request.method.parse().unwrap(),
             headers: config.request.headers.clone(),
-            body,
+            body: config.request.body.clone(),
             body_var_name,
             timeout: config.request.timeout,
         };
@@ -182,6 +163,16 @@ impl<'a> Scenario<'a> {
         }
     }
 
+    fn find_variable_name(str: &str) -> Vec<String> {
+        let variable_pattern = Regex::new(r"\$\{([^}]+)\}").unwrap();
+        let mut var_name = vec![];
+        for caps in variable_pattern.captures_iter(str) {
+            let cap = caps[1].to_string();
+            var_name.push(cap);
+        }
+        var_name
+    }
+
     fn get_value(
         &self,
         name: &str,
@@ -203,7 +194,7 @@ impl<'a> Scenario<'a> {
         Err(format!("Variable '{}' not found", name).into())
     }
 
-    pub fn next_request2(
+    pub fn new_request(
         &mut self,
         ctx: &ScriptContext,
     ) -> Result<HttpRequest, Box<dyn std::error::Error>> {
@@ -526,25 +517,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_scenario_next_request2() {
+    fn test_scenario_new_request() {
         let global = Global { variables: vec![] };
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
 
-        // TODO: test this as well
-        let uri_var_name = vec!["foo_id".into()];
-        let body_var_name = vec!["var1".into(), "var2".into()];
+        let body = r#"{"test": "${var1}_${var2}"}"#;
+        let uri = "/endpoint/foo/${foo_id}";
+        let body_var_name = Scenario::find_variable_name(&body);
+        let uri_var_name = Scenario::find_variable_name(&uri);
 
         let mut scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
             request: Request {
-                uri: "/endpoint/foo/${foo_id}".into(),
+                uri: uri.into(),
                 uri_var_name,
                 method: Method::GET,
                 headers: Some(vec![headers]),
-                body: Some(r#"{"test": "${var1}_${var2}"}"#.into()),
+                body: Some(body.into()),
                 body_var_name,
                 timeout: Duration::from_secs(3),
             },
@@ -564,7 +556,7 @@ mod tests {
         ctx.set_variable("var2", Value::Int(100));
         ctx.set_variable("foo_id", Value::String("1-2-3-4".into()));
 
-        let request = scenario.next_request2(&ctx).unwrap();
+        let request = scenario.new_request(&ctx).unwrap();
         assert_eq!(request.uri, "http://localhost:8080/endpoint/foo/1-2-3-4");
         assert_eq!(request.method, Method::GET);
         assert_eq!(

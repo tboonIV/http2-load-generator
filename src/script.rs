@@ -5,9 +5,6 @@ use crate::scenario::Global;
 use crate::variable::Value;
 use std::collections::HashMap;
 
-// #[derive(Debug)]
-// pub struct ScriptError(String);
-
 pub struct Local {
     pub variables: HashMap<String, Value>,
 }
@@ -163,7 +160,7 @@ mod tests {
     use crate::variable::Variable;
     use std::sync::{Arc, Mutex};
 
-    // let now = Now()
+    // let now = Now("%Y-%m-%d")
     #[test]
     fn test_script_now() {
         let global = Global { variables: vec![] };
@@ -183,18 +180,19 @@ mod tests {
     }
 
     // let random = Random(1, 10)
+    // let value = random.run()
     #[test]
     fn test_script_random() {
         let global = Global { variables: vec![] };
         let script = Script::new(config::ScriptVariable {
-            name: "random".to_string(),
+            name: "value".to_string(),
             function: function::Function::Random(function::RandomFunction { min: 1, max: 10 }),
             args: Some(vec![]),
         });
         let mut ctx = ScriptContext::new();
         script.execute(&mut ctx, &global).unwrap();
 
-        let result = ctx.get_variable("random").unwrap();
+        let result = ctx.get_variable("value").unwrap();
         let value = result.as_int();
         assert!(value >= 1 && value <= 10);
     }
@@ -216,7 +214,8 @@ mod tests {
         assert_eq!(result.as_int(), 123456789);
     }
 
-    // let chargingDataRef = Split(":", 1)
+    // let split = Split(":", 1)
+    // let chargingDataRef = split.run("123:456")
     #[test]
     fn test_script_split() {
         let global = Global { variables: vec![] };

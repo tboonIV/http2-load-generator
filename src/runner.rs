@@ -119,7 +119,7 @@ impl<'a> Runner<'a> {
                 scenario.run_pre_script(&mut script_ctx);
 
                 // First HTTP request
-                let http_request = scenario.next_request2(&script_ctx).unwrap();
+                let http_request = scenario.new_request(&script_ctx).unwrap();
 
                 let ctx = EventContext {
                     scenario_id: 0,
@@ -177,7 +177,7 @@ impl<'a> Runner<'a> {
                         {
                             let mut script_ctx = ctx.script_ctx.borrow_mut();
                             scenario.run_pre_script(&mut script_ctx);
-                            http_request = scenario.next_request2(&script_ctx).unwrap();
+                            http_request = scenario.new_request(&script_ctx).unwrap();
                         }
 
                         eventloop_tx
