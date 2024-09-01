@@ -93,6 +93,22 @@ impl Script {
         }
     }
 
+    pub fn execute2(&self, ctx: &mut ScriptContext, global: &mut Global) -> Result<(), Error> {
+        // Update global variable
+        self.execute(ctx, global)?;
+
+        // Get the return value
+        let value = ctx
+            .get_variable(self.return_var_name.as_str())
+            .unwrap()
+            .clone();
+
+        // Update global variable
+        global.update_variable_value(self.return_var_name.as_str(), value);
+
+        Ok(())
+    }
+
     pub fn execute(&self, ctx: &mut ScriptContext, global: &Global) -> Result<(), Error> {
         let value = match &self.function {
             function::Function::Plus(f) => {
@@ -148,10 +164,7 @@ impl Script {
         };
 
         // Set the return value to the context
-        ctx.set_variable(self.return_var_name.as_str(), value.clone());
-
-        // Update global variable
-        // global.update_variable_value(self.return_var_name.as_str(), value);
+        ctx.set_variable(self.return_var_name.as_str(), value);
 
         Ok(())
     }
@@ -166,7 +179,7 @@ mod tests {
     // let now = Now("%Y-%m-%d")
     #[test]
     fn test_script_now() {
-        let global = Global {
+        let mut global = Global {
             variables: vec![],
             variables_2: HashMap::new(),
         };
@@ -176,7 +189,7 @@ mod tests {
             args: Some(vec![Value::String("%Y-%m-%d".to_string())]),
         });
         let mut ctx = ScriptContext::new();
-        script.execute(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &mut global).unwrap();
         let result = ctx.get_variable("now").unwrap();
         let value = result.as_string();
 
@@ -189,7 +202,7 @@ mod tests {
     // let value = random.run()
     #[test]
     fn test_script_random() {
-        let global = Global {
+        let mut global = Global {
             variables: vec![],
             variables_2: HashMap::new(),
         };
@@ -199,7 +212,7 @@ mod tests {
             args: Some(vec![]),
         });
         let mut ctx = ScriptContext::new();
-        script.execute(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &mut global).unwrap();
 
         let result = ctx.get_variable("value").unwrap();
         let value = result.as_int();
@@ -209,7 +222,7 @@ mod tests {
     // let var1 = var2
     #[test]
     fn test_script_copy() {
-        let global = Global {
+        let mut global = Global {
             variables: vec![],
             variables_2: HashMap::new(),
         };
@@ -220,7 +233,7 @@ mod tests {
         });
         let mut ctx = ScriptContext::new();
         ctx.set_variable("var2", Value::Int(123456789));
-        script.execute(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &mut global).unwrap();
 
         let result = ctx.get_variable("var1").unwrap();
         assert_eq!(result.as_int(), 123456789);
@@ -230,7 +243,7 @@ mod tests {
     // let chargingDataRef = split.run("123:456")
     #[test]
     fn test_script_split() {
-        let global = Global {
+        let mut global = Global {
             variables: vec![],
             variables_2: HashMap::new(),
         };
@@ -243,7 +256,7 @@ mod tests {
             args: Some(vec![Value::String("123:456".to_string())]),
         });
         let mut ctx = ScriptContext::new();
-        script.execute(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &mut global).unwrap();
 
         let result = ctx.get_variable("chargingDataRef").unwrap();
         assert_eq!(result.as_string(), "456");
@@ -252,7 +265,7 @@ mod tests {
     // let imsi = 1 + 2
     #[test]
     fn test_script_plus_constant() {
-        let global = Global {
+        let mut global = Global {
             variables: vec![],
             variables_2: HashMap::new(),
         };
@@ -262,7 +275,7 @@ mod tests {
             args: Some(vec![Value::Int(1), Value::Int(2)]),
         });
         let mut ctx = ScriptContext::new();
-        script.execute(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &mut global).unwrap();
 
         let imsi = ctx.get_variable("imsi").unwrap();
         assert_eq!(imsi.as_int(), 3);
@@ -272,7 +285,7 @@ mod tests {
     // local var3 = var2 + 1
     #[test]
     fn test_script_plus_constant_and_var() {
-        let global = Global {
+        let mut global = Global {
             variables: vec![],
             variables_2: HashMap::new(),
         };
@@ -285,7 +298,7 @@ mod tests {
 
         let mut ctx = ScriptContext::new();
         ctx.set_variable("var2", Value::Int(22));
-        script.execute(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &mut global).unwrap();
 
         let var3 = ctx.get_variable("var3").unwrap();
         assert_eq!(var3.as_int(), 23);
@@ -301,7 +314,7 @@ mod tests {
         //     name: "VAR1".into(),
         //     value: Value::Int(11),
         // }));
-        let global = Global {
+        let mut global = Global {
             // variables: vec![var1],
             variables: vec![],
             variables_2: {
@@ -322,7 +335,7 @@ mod tests {
 
         let mut ctx = ScriptContext::new();
         ctx.set_variable("var2", Value::Int(22));
-        script.execute(&mut ctx, &global).unwrap();
+        script.execute(&mut ctx, &mut global).unwrap();
 
         let var3 = ctx.get_variable("var3").unwrap();
         assert_eq!(var3.as_int(), 33);
@@ -331,8 +344,8 @@ mod tests {
     // VAR1 = 100
     // VAR1 = VAR1 + 10
     #[test]
-    fn test_script_updaate_global_var() {
-        let global = Global {
+    fn test_script_update_global_var() {
+        let mut global = Global {
             variables: vec![],
             variables_2: {
                 let mut map = HashMap::new();
@@ -349,13 +362,13 @@ mod tests {
 
         let mut ctx = ScriptContext::new();
 
-        script.execute(&mut ctx, &global).unwrap();
+        script.execute2(&mut ctx, &mut global).unwrap();
 
         let var1 = ctx.get_variable("VAR1").unwrap();
         assert_eq!(var1.as_int(), 111);
 
         // Check global
-        // let var1 = global.get_variable_value_2("VAR1").unwrap();
-        // assert_eq!(var1.as_int(), 111);
+        let var1 = global.get_variable_value_2("VAR1").unwrap();
+        assert_eq!(var1.as_int(), 111);
     }
 }
