@@ -482,7 +482,9 @@ impl<'a> Scenario<'a> {
 
 pub struct Global {
     // TODO: Change to HashMap
+    //
     pub variables: Vec<Arc<Mutex<Variable>>>,
+    pub variables_2: HashMap<String, Value>,
 }
 
 impl Global {
@@ -494,12 +496,31 @@ impl Global {
             variables.push(Arc::new(Mutex::new(v)));
         }
 
-        Global { variables }
+        Global {
+            variables,
+            variables_2: HashMap::new(),
+        }
     }
 
     // pub fn add_variable(&mut self, variable: Variable) {
     //     self.variables.push(Arc::new(Mutex::new(variable)));
     // }
+
+    pub fn get_variable_value_2(&self, variable_name: &str) -> Option<&Value> {
+        // Questions: How come don't need to lock here?
+        self.variables_2.get(variable_name)
+        // .map(|v| v.clone())
+    }
+
+    pub fn update_variable_value(&mut self, variable_name: &str, value: Value) {
+        if self.variables_2.contains_key(variable_name) {
+            self.variables_2.insert(variable_name.into(), value);
+        }
+    }
+
+    pub fn insert_variable_value(&mut self, variable_name: &str, value: Value) {
+        self.variables_2.insert(variable_name.into(), value);
+    }
 
     pub fn get_variable_value(&self, variable_name: &str) -> Option<Value> {
         for v in &self.variables {
@@ -518,7 +539,10 @@ mod tests {
 
     #[test]
     fn test_scenario_new_request() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
 
@@ -567,7 +591,10 @@ mod tests {
 
     #[test]
     fn test_scenario_assert_response() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
@@ -614,7 +641,10 @@ mod tests {
 
     #[test]
     fn test_scenario_check_response_with_body() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
@@ -727,7 +757,10 @@ mod tests {
 
     #[test]
     fn test_scenario_check_response_with_nested_body() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
@@ -807,7 +840,10 @@ mod tests {
             path: "$.ObjectId".into(),
             function: None,
         }];
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
 
         let scenario = Scenario {
             name: "Scenario_1".into(),

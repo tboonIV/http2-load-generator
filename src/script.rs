@@ -51,7 +51,7 @@ impl ScriptVariable {
                 }
 
                 // Check global
-                let value = global.get_variable_value(name);
+                let value = global.get_variable_value_2(name);
                 if let Some(value) = value {
                     return Ok(value.clone());
                 }
@@ -148,7 +148,10 @@ impl Script {
         };
 
         // Set the return value to the context
-        ctx.set_variable(self.return_var_name.as_str(), value);
+        ctx.set_variable(self.return_var_name.as_str(), value.clone());
+
+        // Update global variable
+        // global.update_variable_value(self.return_var_name.as_str(), value);
 
         Ok(())
     }
@@ -157,13 +160,16 @@ impl Script {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::variable::Variable;
-    use std::sync::{Arc, Mutex};
+    // use crate::variable::Variable;
+    // use std::sync::{Arc, Mutex};
 
     // let now = Now("%Y-%m-%d")
     #[test]
     fn test_script_now() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
         let script = Script::new(config::ScriptVariable {
             name: "now".to_string(),
             function: function::Function::Now(function::NowFunction {}),
@@ -183,7 +189,10 @@ mod tests {
     // let value = random.run()
     #[test]
     fn test_script_random() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
         let script = Script::new(config::ScriptVariable {
             name: "value".to_string(),
             function: function::Function::Random(function::RandomFunction { min: 1, max: 10 }),
@@ -200,7 +209,10 @@ mod tests {
     // let var1 = var2
     #[test]
     fn test_script_copy() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
         let script = Script::new(config::ScriptVariable {
             name: "var1".to_string(),
             function: function::Function::Copy(function::CopyFunction {}),
@@ -218,7 +230,10 @@ mod tests {
     // let chargingDataRef = split.run("123:456")
     #[test]
     fn test_script_split() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
         let script = Script::new(config::ScriptVariable {
             name: "chargingDataRef".to_string(),
             function: function::Function::Split(function::SplitFunction {
@@ -237,7 +252,10 @@ mod tests {
     // let imsi = 1 + 2
     #[test]
     fn test_script_plus_constant() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
         let script = Script::new(config::ScriptVariable {
             name: "imsi".to_string(),
             function: function::Function::Plus(function::PlusFunction {}),
@@ -254,7 +272,10 @@ mod tests {
     // local var3 = var2 + 1
     #[test]
     fn test_script_plus_constant_and_var() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: vec![],
+            variables_2: HashMap::new(),
+        };
 
         let script = Script::new(config::ScriptVariable {
             name: "var3".to_string(),
@@ -276,12 +297,18 @@ mod tests {
     #[test]
     fn test_script_plus_global_var() {
         // Global
-        let var1 = Arc::new(Mutex::new(Variable {
-            name: "VAR1".into(),
-            value: Value::Int(11),
-        }));
+        // let var1 = Arc::new(Mutex::new(Variable {
+        //     name: "VAR1".into(),
+        //     value: Value::Int(11),
+        // }));
         let global = Global {
-            variables: vec![var1],
+            // variables: vec![var1],
+            variables: vec![],
+            variables_2: {
+                let mut map = HashMap::new();
+                map.insert("VAR1".to_string(), Value::Int(11));
+                map
+            },
         };
 
         let script = Script::new(config::ScriptVariable {
@@ -299,5 +326,36 @@ mod tests {
 
         let var3 = ctx.get_variable("var3").unwrap();
         assert_eq!(var3.as_int(), 33);
+    }
+
+    // VAR1 = 100
+    // VAR1 = VAR1 + 10
+    #[test]
+    fn test_script_updaate_global_var() {
+        let global = Global {
+            variables: vec![],
+            variables_2: {
+                let mut map = HashMap::new();
+                map.insert("VAR1".to_string(), Value::Int(100));
+                map
+            },
+        };
+
+        let script = Script::new(config::ScriptVariable {
+            name: "VAR1".to_string(),
+            function: function::Function::Plus(function::PlusFunction {}),
+            args: Some(vec![Value::String("$VAR1".to_string()), Value::Int(11)]),
+        });
+
+        let mut ctx = ScriptContext::new();
+
+        script.execute(&mut ctx, &global).unwrap();
+
+        let var1 = ctx.get_variable("VAR1").unwrap();
+        assert_eq!(var1.as_int(), 111);
+
+        // Check global
+        // let var1 = global.get_variable_value_2("VAR1").unwrap();
+        // assert_eq!(var1.as_int(), 111);
     }
 }
