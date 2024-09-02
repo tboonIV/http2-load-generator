@@ -13,21 +13,29 @@ pub struct Local {
 
 pub struct ScriptContext {
     pub local: Local,
+    pub global: Arc<RwLock<Global>>,
 }
 
 impl ScriptContext {
-    pub fn new() -> Self {
+    pub fn new(global: Arc<RwLock<Global>>) -> Self {
         let local = Local {
             variables: HashMap::new(),
         };
-        ScriptContext { local }
+        ScriptContext { local, global }
     }
 
-    pub fn get_variable(&self, name: &str) -> Option<&Value> {
+    pub fn get_variable(&self, name: &str) -> Option<Value> {
         let value = self.local.variables.get(name);
         // Get from local first
         if let Some(value) = value {
-            return Some(value);
+            return Some(value.clone());
+        }
+
+        // Then check global
+        let global = self.global.read().unwrap();
+        let value = global.get_variable_value_2(name);
+        if let Some(value) = value {
+            return Some(value.clone());
         }
         None
     }
@@ -211,7 +219,7 @@ mod tests {
             function: function::Function::Now(function::NowFunction {}),
             args: Some(vec![Value::String("%Y-%m-%d".to_string())]),
         });
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(Arc::clone(&global));
         script.execute(&mut ctx, global).unwrap();
         let result = ctx.get_variable("now").unwrap();
         let value = result.as_string();
@@ -235,7 +243,7 @@ mod tests {
             function: function::Function::Random(function::RandomFunction { min: 1, max: 10 }),
             args: Some(vec![]),
         });
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(Arc::clone(&global));
         script.execute(&mut ctx, global).unwrap();
 
         let result = ctx.get_variable("value").unwrap();
@@ -256,7 +264,7 @@ mod tests {
             function: function::Function::Copy(function::CopyFunction {}),
             args: Some(vec![Value::String("$var2".to_string())]),
         });
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(Arc::clone(&global));
         ctx.set_variable("var2", Value::Int(123456789));
         script.execute(&mut ctx, global).unwrap();
 
@@ -281,7 +289,7 @@ mod tests {
             }),
             args: Some(vec![Value::String("123:456".to_string())]),
         });
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(Arc::clone(&global));
         script.execute(&mut ctx, global).unwrap();
 
         let result = ctx.get_variable("chargingDataRef").unwrap();
@@ -301,7 +309,7 @@ mod tests {
             function: function::Function::Plus(function::PlusFunction {}),
             args: Some(vec![Value::Int(1), Value::Int(2)]),
         });
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(Arc::clone(&global));
         script.execute(&mut ctx, global).unwrap();
 
         let imsi = ctx.get_variable("imsi").unwrap();
@@ -323,7 +331,7 @@ mod tests {
             args: Some(vec![Value::String("$var2".to_string()), Value::Int(1)]),
         });
 
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(Arc::clone(&global));
         ctx.set_variable("var2", Value::Int(22));
         script.execute(&mut ctx, global).unwrap();
 
@@ -361,7 +369,7 @@ mod tests {
             ]),
         });
 
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(Arc::clone(&global));
         ctx.set_variable("var2", Value::Int(22));
         script.execute(&mut ctx, global).unwrap();
 
@@ -388,7 +396,7 @@ mod tests {
             args: Some(vec![Value::String("$VAR1".to_string()), Value::Int(11)]),
         });
 
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(Arc::clone(&global));
         script.execute(&mut ctx, Arc::clone(&global)).unwrap();
 
         let var1 = ctx.get_variable("VAR1").unwrap();

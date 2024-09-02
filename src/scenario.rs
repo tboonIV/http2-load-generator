@@ -78,10 +78,10 @@ pub enum DefineFrom {
 }
 
 // #[derive(Clone)]
-pub struct Scenario<'a> {
+pub struct Scenario {
     pub name: String,
     pub base_url: String,
-    pub global: &'a Global,
+    // pub global: &'a Global,
     pub global2: Arc<RwLock<Global>>,
     pub request: Request,
     pub response: Response,
@@ -91,11 +91,11 @@ pub struct Scenario<'a> {
     pub post_script: Option<Vec<script::Script>>,
 }
 
-impl<'a> Scenario<'a> {
+impl Scenario {
     pub fn new(
         config: &config::Scenario,
         base_url: &str,
-        global: &'a Global,
+        // global: &'a Global,
         global2: Arc<RwLock<Global>>,
     ) -> Self {
         // Find variables in body and url
@@ -160,7 +160,7 @@ impl<'a> Scenario<'a> {
         Scenario {
             name: config.name.clone(),
             base_url: base_url.into(),
-            global,
+            // global,
             global2,
             request,
             response,
@@ -185,7 +185,6 @@ impl<'a> Scenario<'a> {
         &self,
         name: &str,
         ctx: &ScriptContext,
-        global: &Global,
         global2: Arc<RwLock<Global>>,
     ) -> Result<Value, Box<dyn std::error::Error>> {
         // Check context local
@@ -195,10 +194,10 @@ impl<'a> Scenario<'a> {
         }
 
         // Check global
-        let value = global.get_variable_value(name);
-        if let Some(value) = value {
-            return Ok(value.clone());
-        }
+        // let value = global.get_variable_value(name);
+        // if let Some(value) = value {
+        //     return Ok(value.clone());
+        // }
 
         let global2 = global2.read().unwrap();
         let value = global2.get_variable_value_2(name);
@@ -219,8 +218,7 @@ impl<'a> Scenario<'a> {
 
                 // Apply vairables replace in body
                 for name in &self.request.body_var_name {
-                    let value =
-                        self.get_value(&name, ctx, self.global, Arc::clone(&self.global2))?;
+                    let value = self.get_value(&name, ctx, Arc::clone(&self.global2))?;
                     let value = match value {
                         Value::Int(v) => v.to_string(),
                         Value::String(v) => v,
@@ -238,7 +236,7 @@ impl<'a> Scenario<'a> {
 
             // Apply vairables replace in uri
             for name in &self.request.uri_var_name {
-                let value = self.get_value(&name, ctx, self.global, Arc::clone(&self.global2))?;
+                let value = self.get_value(&name, ctx, Arc::clone(&self.global2))?;
                 let value = match value {
                     Value::Int(v) => v.to_string(),
                     Value::String(v) => v,
@@ -562,6 +560,8 @@ mod tests {
             variables: vec![],
             variables_2: HashMap::new(),
         };
+        let global2 = Arc::new(RwLock::new(global.clone()));
+
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
 
@@ -573,8 +573,7 @@ mod tests {
         let mut scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: &global,
-            global2: Arc::new(RwLock::new(global.clone())),
+            global2: Arc::clone(&global2),
             request: Request {
                 uri: uri.into(),
                 uri_var_name,
@@ -595,7 +594,7 @@ mod tests {
             post_script: None,
         };
 
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(Arc::clone(&global2));
         ctx.set_variable("var1", Value::Int(0));
         ctx.set_variable("var2", Value::Int(100));
         ctx.set_variable("foo_id", Value::String("1-2-3-4".into()));
@@ -618,7 +617,6 @@ mod tests {
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: &global,
             global2: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
@@ -669,7 +667,6 @@ mod tests {
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: &global,
             global2: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
@@ -786,7 +783,6 @@ mod tests {
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: &global,
             global2: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
@@ -867,12 +863,12 @@ mod tests {
             variables: vec![],
             variables_2: HashMap::new(),
         };
+        let global2 = Arc::new(RwLock::new(global.clone()));
 
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: &global,
-            global2: Arc::new(RwLock::new(global.clone())),
+            global2: Arc::clone(&global2),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -893,7 +889,7 @@ mod tests {
             post_script: None,
         };
 
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(global2);
 
         scenario
             .from_response(
@@ -912,6 +908,6 @@ mod tests {
 
         let object_id = ctx.get_variable("ObjectId").unwrap();
 
-        assert_eq!(object_id, &Value::String("0-1-2-3".into()));
+        assert_eq!(object_id, Value::String("0-1-2-3".into()));
     }
 }

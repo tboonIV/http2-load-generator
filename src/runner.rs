@@ -19,19 +19,18 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time;
 use tokio::time::Duration;
 
-pub struct Runner<'a> {
+pub struct Runner {
     param: RunParameter,
     target_address: String,
-    first_scenario: Scenario<'a>,
-    subsequent_scenarios: Vec<Scenario<'a>>,
+    first_scenario: Scenario,
+    subsequent_scenarios: Vec<Scenario>,
 }
 
-impl<'a> Runner<'a> {
+impl Runner {
     pub fn new(
         config: RunnerConfig,
-        global: &'a Global,
         global2: Arc<RwLock<Global>>,
-    ) -> Result<Runner<'a>, Box<dyn Error>> {
+    ) -> Result<Runner, Box<dyn Error>> {
         // batch size
         let batch_size = match config.batch_size {
             config::BatchSize::Auto(_) => None,
@@ -64,7 +63,6 @@ impl<'a> Runner<'a> {
             subsequent_scenarios.push(Scenario::new(
                 scenario_config,
                 &config.base_url,
-                &global,
                 Arc::clone(&global2),
             ));
         }
@@ -74,12 +72,7 @@ impl<'a> Runner<'a> {
         Ok(Runner {
             param: RunParameter::new(config.target_rps, duration_s, batch_size, scenario_count),
             target_address: address.into(),
-            first_scenario: Scenario::new(
-                first_scenario_config,
-                &config.base_url,
-                &global,
-                global2,
-            ),
+            first_scenario: Scenario::new(first_scenario_config, &config.base_url, global2),
             subsequent_scenarios,
         })
     }
@@ -130,7 +123,7 @@ impl<'a> Runner<'a> {
                 log::debug!("Running scenario #0: {}", scenario.name);
 
                 // First Pre Script
-                let mut script_ctx = ScriptContext::new();
+                let mut script_ctx = ScriptContext::new(Arc::clone(&scenario.global2));
                 scenario.run_pre_script(&mut script_ctx);
 
                 // First HTTP request
