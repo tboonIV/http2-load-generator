@@ -14,6 +14,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::RwLock;
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -81,7 +82,7 @@ pub struct Scenario<'a> {
     pub name: String,
     pub base_url: String,
     pub global: &'a Global,
-    pub global2: Arc<Mutex<Global>>,
+    pub global2: Arc<RwLock<Global>>,
     pub request: Request,
     pub response: Response,
     pub response_defines: Vec<ResponseDefine>,
@@ -95,7 +96,7 @@ impl<'a> Scenario<'a> {
         config: &config::Scenario,
         base_url: &str,
         global: &'a Global,
-        global2: Arc<Mutex<Global>>,
+        global2: Arc<RwLock<Global>>,
     ) -> Self {
         // Find variables in body and url
         let body_var_name =
@@ -185,7 +186,7 @@ impl<'a> Scenario<'a> {
         name: &str,
         ctx: &ScriptContext,
         global: &Global,
-        global2: Arc<Mutex<Global>>,
+        global2: Arc<RwLock<Global>>,
     ) -> Result<Value, Box<dyn std::error::Error>> {
         // Check context local
         let value = ctx.get_variable(name);
@@ -199,11 +200,11 @@ impl<'a> Scenario<'a> {
             return Ok(value.clone());
         }
 
-        // let global2 = global2.lock().unwrap();
-        // let value = global2.get_variable_value_2(name);
-        // if let Some(value) = value {
-        //     return Ok(value.clone());
-        // }
+        let global2 = global2.read().unwrap();
+        let value = global2.get_variable_value_2(name);
+        if let Some(value) = value {
+            return Ok(value.clone());
+        }
 
         Err(format!("Variable '{}' not found", name).into())
     }
@@ -572,7 +573,7 @@ mod tests {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
-            global2: Arc::new(Mutex::new(global.clone())),
+            global2: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: uri.into(),
                 uri_var_name,
@@ -617,7 +618,7 @@ mod tests {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
-            global2: Arc::new(Mutex::new(global.clone())),
+            global2: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -668,7 +669,7 @@ mod tests {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
-            global2: Arc::new(Mutex::new(global.clone())),
+            global2: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -785,7 +786,7 @@ mod tests {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
-            global2: Arc::new(Mutex::new(global.clone())),
+            global2: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -870,7 +871,7 @@ mod tests {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
-            global2: Arc::new(Mutex::new(global.clone())),
+            global2: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],

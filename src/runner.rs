@@ -11,7 +11,7 @@ use h2::client::SendRequest;
 use std::cell::RefCell;
 use std::error::Error;
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::RwLock;
 use std::time::Instant;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::channel;
@@ -30,7 +30,7 @@ impl<'a> Runner<'a> {
     pub fn new(
         config: RunnerConfig,
         global: &'a Global,
-        global2: Arc<Mutex<Global>>,
+        global2: Arc<RwLock<Global>>,
     ) -> Result<Runner<'a>, Box<dyn Error>> {
         // batch size
         let batch_size = match config.batch_size {
