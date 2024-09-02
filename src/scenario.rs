@@ -486,6 +486,7 @@ impl Global {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, RwLock};
 
     #[test]
     fn test_scenario_new_request() {
