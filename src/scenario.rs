@@ -11,8 +11,6 @@ use regex::Regex;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::RwLock;
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -79,7 +77,6 @@ pub enum DefineFrom {
 pub struct Scenario {
     pub name: String,
     pub base_url: String,
-    pub global: Arc<RwLock<Global>>,
     pub request: Request,
     pub response: Response,
     pub response_defines: Vec<ResponseDefine>,
@@ -89,7 +86,7 @@ pub struct Scenario {
 }
 
 impl Scenario {
-    pub fn new(config: &config::Scenario, base_url: &str, global: Arc<RwLock<Global>>) -> Self {
+    pub fn new(config: &config::Scenario, base_url: &str) -> Self {
         // Find variables in body and url
         let body_var_name =
             Scenario::find_variable_name(&config.request.body.clone().unwrap_or_default());
@@ -152,7 +149,6 @@ impl Scenario {
         Scenario {
             name: config.name.clone(),
             base_url: base_url.into(),
-            global,
             request,
             response,
             response_defines,
@@ -509,7 +505,6 @@ mod tests {
         let mut scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: Arc::clone(&global),
             request: Request {
                 uri: uri.into(),
                 uri_var_name,
@@ -530,7 +525,7 @@ mod tests {
             post_script: None,
         };
 
-        let mut ctx = ScriptContext::new(Arc::clone(&global));
+        let mut ctx = ScriptContext::new(global);
         ctx.set_variable("var1", Value::Int(0));
         ctx.set_variable("var2", Value::Int(100));
         ctx.set_variable("foo_id", Value::String("1-2-3-4".into()));
@@ -546,13 +541,9 @@ mod tests {
 
     #[test]
     fn test_scenario_assert_response() {
-        let global = Global {
-            variables: HashMap::new(),
-        };
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -595,13 +586,9 @@ mod tests {
 
     #[test]
     fn test_scenario_check_response_with_body() {
-        let global = Global {
-            variables: HashMap::new(),
-        };
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -710,13 +697,9 @@ mod tests {
 
     #[test]
     fn test_scenario_check_response_with_nested_body() {
-        let global = Global {
-            variables: HashMap::new(),
-        };
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: Arc::new(RwLock::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -795,12 +778,11 @@ mod tests {
         let global = Global {
             variables: HashMap::new(),
         };
-        let global = Arc::new(RwLock::new(global.clone()));
+        let global = Arc::new(RwLock::new(global));
 
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: Arc::clone(&global),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],

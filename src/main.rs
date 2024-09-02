@@ -77,8 +77,8 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
             rt.block_on(async move {
                 let global = Global::new(config.runner.global.clone());
-                let mut runner = Runner::new(config.runner, global).unwrap();
-                let report = runner.run().await.unwrap();
+                let mut runner = Runner::new(config.runner).unwrap();
+                let report = runner.run(global).await.unwrap();
                 tx.send(report).await.unwrap();
             });
         });

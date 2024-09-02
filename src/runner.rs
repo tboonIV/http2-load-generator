@@ -27,9 +27,7 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new(config: RunnerConfig, global: Global) -> Result<Runner, Box<dyn Error>> {
-        let global = Arc::new(RwLock::new(global));
-
+    pub fn new(config: RunnerConfig) -> Result<Runner, Box<dyn Error>> {
         // batch size
         let batch_size = match config.batch_size {
             config::BatchSize::Auto(_) => None,
@@ -59,11 +57,7 @@ impl Runner {
         }
         let mut subsequent_scenarios = vec![];
         for scenario_config in subsequent_scenarios_config.iter() {
-            subsequent_scenarios.push(Scenario::new(
-                scenario_config,
-                &config.base_url,
-                Arc::clone(&global),
-            ));
+            subsequent_scenarios.push(Scenario::new(scenario_config, &config.base_url));
         }
 
         let scenario_count = subsequent_scenarios_config.len() + 1;
@@ -71,12 +65,14 @@ impl Runner {
         Ok(Runner {
             param: RunParameter::new(config.target_rps, duration_s, batch_size, scenario_count),
             target_address: address.into(),
-            first_scenario: Scenario::new(first_scenario_config, &config.base_url, global),
+            first_scenario: Scenario::new(first_scenario_config, &config.base_url),
             subsequent_scenarios,
         })
     }
 
-    pub async fn run(&mut self) -> Result<RunReport, Box<dyn Error>> {
+    pub async fn run(&mut self, global: Global) -> Result<RunReport, Box<dyn Error>> {
+        let global = Arc::new(RwLock::new(global));
+
         let tcp = TcpStream::connect(&self.target_address).await?;
         let (client, h2) = client::handshake(tcp).await?;
 
@@ -122,7 +118,7 @@ impl Runner {
                 log::debug!("Running scenario #0: {}", scenario.name);
 
                 // First Pre Script
-                let mut script_ctx = ScriptContext::new(Arc::clone(&scenario.global));
+                let mut script_ctx = ScriptContext::new(Arc::clone(&global));
                 scenario.run_pre_script(&mut script_ctx);
 
                 // First HTTP request

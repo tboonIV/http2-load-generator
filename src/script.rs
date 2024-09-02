@@ -170,17 +170,21 @@ mod tests {
     // let now = Now("%Y-%m-%d")
     #[test]
     fn test_script_now() {
+        // Global
         let global = Global {
             variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
+
         let script = Script::new(config::ScriptVariable {
             name: "now".to_string(),
             function: function::Function::Now(function::NowFunction {}),
             args: Some(vec![Value::String("%Y-%m-%d".to_string())]),
         });
+
         let mut ctx = ScriptContext::new(Arc::clone(&global));
         script.execute(&mut ctx).unwrap();
+
         let result = ctx.get_variable("now").unwrap();
         let value = result.as_string();
 
@@ -193,10 +197,12 @@ mod tests {
     // let value = random.run()
     #[test]
     fn test_script_random() {
+        // Global
         let global = Global {
             variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
+
         let script = Script::new(config::ScriptVariable {
             name: "value".to_string(),
             function: function::Function::Random(function::RandomFunction { min: 1, max: 10 }),
@@ -213,10 +219,12 @@ mod tests {
     // let var1 = var2
     #[test]
     fn test_script_copy() {
+        // Global
         let global = Global {
             variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
+
         let script = Script::new(config::ScriptVariable {
             name: "var1".to_string(),
             function: function::Function::Copy(function::CopyFunction {}),
@@ -234,10 +242,12 @@ mod tests {
     // let chargingDataRef = split.run("123:456")
     #[test]
     fn test_script_split() {
+        // Global
         let global = Global {
             variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
+
         let script = Script::new(config::ScriptVariable {
             name: "chargingDataRef".to_string(),
             function: function::Function::Split(function::SplitFunction {
@@ -256,10 +266,12 @@ mod tests {
     // let imsi = 1 + 2
     #[test]
     fn test_script_plus_constant() {
+        // Global
         let global = Global {
             variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
+
         let script = Script::new(config::ScriptVariable {
             name: "imsi".to_string(),
             function: function::Function::Plus(function::PlusFunction {}),
@@ -276,10 +288,12 @@ mod tests {
     // local var3 = var2 + 1
     #[test]
     fn test_script_plus_constant_and_var() {
+        // Global
         let global = Global {
             variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
+
         let script = Script::new(config::ScriptVariable {
             name: "var3".to_string(),
             function: function::Function::Plus(function::PlusFunction {}),
@@ -330,6 +344,7 @@ mod tests {
     // VAR1 = VAR1 + 10
     #[test]
     fn test_script_update_global_var() {
+        // Global
         let global = Global {
             variables: {
                 let mut map = HashMap::new();
@@ -338,6 +353,7 @@ mod tests {
             },
         };
         let global = Arc::new(RwLock::new(global));
+
         let script = Script::new(config::ScriptVariable {
             name: "VAR1".to_string(),
             function: function::Function::Plus(function::PlusFunction {}),
