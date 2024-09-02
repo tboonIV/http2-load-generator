@@ -40,8 +40,21 @@ impl ScriptContext {
         None
     }
 
-    pub fn set_variable(&mut self, _name: &str, value: Value) {
-        self.local.variables.insert(_name.into(), value);
+    pub fn must_get_variable(&self, name: &str) -> Result<Value, Error> {
+        let value = self.get_variable(name);
+        if let Some(value) = value {
+            return Ok(value);
+        }
+        Err(Error::ScriptError(format!("Variable '{}' not found", name)))
+    }
+
+    pub fn set_variable(&mut self, name: &str, value: Value) {
+        // Set to local
+        self.local.variables.insert(name.into(), value.clone());
+
+        // Set to global
+        let mut global = self.global.write().unwrap();
+        global.update_variable_value(name, value);
     }
 }
 
@@ -51,28 +64,9 @@ pub enum ScriptVariable {
 }
 
 impl ScriptVariable {
-    pub fn get_value(
-        &self,
-        ctx: &ScriptContext,
-        global: Arc<RwLock<Global>>,
-    ) -> Result<Value, Error> {
+    pub fn get_value(&self, ctx: &ScriptContext) -> Result<Value, Error> {
         match self {
-            ScriptVariable::Variable(name) => {
-                // Check context local
-                let value = ctx.get_variable(name);
-                if let Some(value) = value {
-                    return Ok(value.clone());
-                }
-
-                // Check global
-                let global = global.read().unwrap();
-                let value = global.get_variable_value(name);
-                if let Some(value) = value {
-                    return Ok(value.clone());
-                }
-
-                Err(Error::ScriptError(format!("Variable '{}' not found", name)))
-            }
+            ScriptVariable::Variable(name) => ctx.must_get_variable(name),
             ScriptVariable::Constant(v) => Ok(v.clone()),
         }
     }
@@ -108,39 +102,12 @@ impl Script {
         }
     }
 
-    // pub fn execute2(
-    //     &self,
-    //     ctx: &mut ScriptContext,
-    //     global: Arc<RwLock<Global>>,
-    // ) -> Result<(), Error> {
-    //     // Update global variable
-    //     self.execute(ctx, Arc::clone(&global))?;
-    //
-    //     // Get the return value
-    //     let value = ctx
-    //         .get_variable(self.return_var_name.as_str())
-    //         .unwrap()
-    //         .clone();
-    //
-    //     // Update global variable
-    //     {
-    //         let mut global = global.write().unwrap();
-    //         global.update_variable_value(self.return_var_name.as_str(), value);
-    //     }
-    //
-    //     Ok(())
-    // }
-
-    pub fn execute(
-        &self,
-        ctx: &mut ScriptContext,
-        global: Arc<RwLock<Global>>,
-    ) -> Result<(), Error> {
+    pub fn execute(&self, ctx: &mut ScriptContext) -> Result<(), Error> {
         let value = match &self.function {
             function::Function::Plus(f) => {
                 if self.args.len() == 2 {
-                    let arg0 = self.args[0].get_value(ctx, Arc::clone(&global))?.as_int();
-                    let arg1 = self.args[1].get_value(ctx, Arc::clone(&global))?.as_int();
+                    let arg0 = self.args[0].get_value(ctx)?.as_int();
+                    let arg1 = self.args[1].get_value(ctx)?.as_int();
                     let value = f.apply(arg0, arg1);
                     Value::Int(value)
                 } else {
@@ -149,7 +116,7 @@ impl Script {
             }
             function::Function::Now(f) => {
                 if self.args.len() == 1 {
-                    let arg0 = self.args[0].get_value(ctx, Arc::clone(&global))?;
+                    let arg0 = self.args[0].get_value(ctx)?;
                     let arg0 = arg0.as_string();
                     let value = f.apply(Some(arg0));
                     Value::String(value)
@@ -170,7 +137,7 @@ impl Script {
             }
             function::Function::Split(f) => {
                 if self.args.len() == 1 {
-                    let arg0 = self.args[0].get_value(ctx, Arc::clone(&global))?;
+                    let arg0 = self.args[0].get_value(ctx)?;
                     let arg0 = arg0.as_string();
                     let value = f.apply(arg0);
                     Value::String(value)
@@ -180,7 +147,7 @@ impl Script {
             }
             function::Function::Copy(f) => {
                 if self.args.len() == 1 {
-                    let arg0 = self.args[0].get_value(ctx, Arc::clone(&global))?;
+                    let arg0 = self.args[0].get_value(ctx)?;
                     let value = f.apply(&arg0);
                     value
                 } else {
@@ -190,11 +157,7 @@ impl Script {
         };
 
         // Set the return value to the context
-        ctx.set_variable(self.return_var_name.as_str(), value.clone());
-
-        // Update global variable
-        let mut global = global.write().unwrap();
-        global.update_variable_value(self.return_var_name.as_str(), value);
+        ctx.set_variable(self.return_var_name.as_str(), value);
 
         Ok(())
     }
@@ -203,8 +166,6 @@ impl Script {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use crate::variable::Variable;
-    // use std::sync::{Arc, RwLock};
 
     // let now = Now("%Y-%m-%d")
     #[test]
@@ -219,7 +180,7 @@ mod tests {
             args: Some(vec![Value::String("%Y-%m-%d".to_string())]),
         });
         let mut ctx = ScriptContext::new(Arc::clone(&global));
-        script.execute(&mut ctx, global).unwrap();
+        script.execute(&mut ctx).unwrap();
         let result = ctx.get_variable("now").unwrap();
         let value = result.as_string();
 
@@ -242,7 +203,7 @@ mod tests {
             args: Some(vec![]),
         });
         let mut ctx = ScriptContext::new(Arc::clone(&global));
-        script.execute(&mut ctx, global).unwrap();
+        script.execute(&mut ctx).unwrap();
 
         let result = ctx.get_variable("value").unwrap();
         let value = result.as_int();
@@ -263,7 +224,7 @@ mod tests {
         });
         let mut ctx = ScriptContext::new(Arc::clone(&global));
         ctx.set_variable("var2", Value::Int(123456789));
-        script.execute(&mut ctx, global).unwrap();
+        script.execute(&mut ctx).unwrap();
 
         let result = ctx.get_variable("var1").unwrap();
         assert_eq!(result.as_int(), 123456789);
@@ -286,7 +247,7 @@ mod tests {
             args: Some(vec![Value::String("123:456".to_string())]),
         });
         let mut ctx = ScriptContext::new(Arc::clone(&global));
-        script.execute(&mut ctx, global).unwrap();
+        script.execute(&mut ctx).unwrap();
 
         let result = ctx.get_variable("chargingDataRef").unwrap();
         assert_eq!(result.as_string(), "456");
@@ -305,7 +266,7 @@ mod tests {
             args: Some(vec![Value::Int(1), Value::Int(2)]),
         });
         let mut ctx = ScriptContext::new(Arc::clone(&global));
-        script.execute(&mut ctx, global).unwrap();
+        script.execute(&mut ctx).unwrap();
 
         let imsi = ctx.get_variable("imsi").unwrap();
         assert_eq!(imsi.as_int(), 3);
@@ -327,7 +288,7 @@ mod tests {
 
         let mut ctx = ScriptContext::new(Arc::clone(&global));
         ctx.set_variable("var2", Value::Int(22));
-        script.execute(&mut ctx, global).unwrap();
+        script.execute(&mut ctx).unwrap();
 
         let var3 = ctx.get_variable("var3").unwrap();
         assert_eq!(var3.as_int(), 23);
@@ -339,12 +300,7 @@ mod tests {
     #[test]
     fn test_script_plus_global_var() {
         // Global
-        // let var1 = Arc::new(RwLock::new(Variable {
-        //     name: "VAR1".into(),
-        //     value: Value::Int(11),
-        // }));
         let global = Global {
-            // variables: vec![var1],
             variables: {
                 let mut map = HashMap::new();
                 map.insert("VAR1".to_string(), Value::Int(11));
@@ -364,7 +320,7 @@ mod tests {
 
         let mut ctx = ScriptContext::new(Arc::clone(&global));
         ctx.set_variable("var2", Value::Int(22));
-        script.execute(&mut ctx, global).unwrap();
+        script.execute(&mut ctx).unwrap();
 
         let var3 = ctx.get_variable("var3").unwrap();
         assert_eq!(var3.as_int(), 33);
@@ -389,7 +345,7 @@ mod tests {
         });
 
         let mut ctx = ScriptContext::new(Arc::clone(&global));
-        script.execute(&mut ctx, Arc::clone(&global)).unwrap();
+        script.execute(&mut ctx).unwrap();
 
         let var1 = ctx.get_variable("VAR1").unwrap();
         assert_eq!(var1.as_int(), 111);

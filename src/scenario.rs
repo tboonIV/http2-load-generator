@@ -172,27 +172,6 @@ impl Scenario {
         var_name
     }
 
-    fn get_value(
-        &self,
-        name: &str,
-        ctx: &ScriptContext,
-        global: Arc<RwLock<Global>>,
-    ) -> Result<Value, Box<dyn std::error::Error>> {
-        // Check context local
-        let value = ctx.get_variable(name);
-        if let Some(value) = value {
-            return Ok(value.clone());
-        }
-
-        let global = global.read().unwrap();
-        let value = global.get_variable_value(name);
-        if let Some(value) = value {
-            return Ok(value.clone());
-        }
-
-        Err(format!("Variable '{}' not found", name).into())
-    }
-
     pub fn new_request(
         &mut self,
         ctx: &ScriptContext,
@@ -203,7 +182,7 @@ impl Scenario {
 
                 // Apply vairables replace in body
                 for name in &self.request.body_var_name {
-                    let value = self.get_value(&name, ctx, Arc::clone(&self.global))?;
+                    let value = ctx.must_get_variable(&name)?;
                     let value = match value {
                         Value::Int(v) => v.to_string(),
                         Value::String(v) => v,
@@ -221,7 +200,7 @@ impl Scenario {
 
             // Apply vairables replace in uri
             for name in &self.request.uri_var_name {
-                let value = self.get_value(&name, ctx, Arc::clone(&self.global))?;
+                let value = ctx.must_get_variable(&name)?;
                 let value = match value {
                     Value::Int(v) => v.to_string(),
                     Value::String(v) => v,
@@ -453,7 +432,7 @@ impl Scenario {
 
         if let Some(script) = &self.pre_script {
             for s in script {
-                s.execute(ctx, Arc::clone(&self.global)).unwrap();
+                s.execute(ctx).unwrap();
             }
         }
 
@@ -468,7 +447,7 @@ impl Scenario {
 
         if let Some(script) = &self.post_script {
             for s in script {
-                s.execute(ctx, Arc::clone(&self.global)).unwrap();
+                s.execute(ctx).unwrap();
             }
         }
 
