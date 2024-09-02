@@ -470,8 +470,8 @@ impl<'a> Scenario<'a> {
 
         if let Some(script) = &self.pre_script {
             for s in script {
-                s.execute(ctx, &self.global).unwrap();
-                // s.execute2(ctx, Arc::clone(&self.global2)).unwrap();
+                // s.execute(ctx, &self.global).unwrap();
+                s.execute(ctx, Arc::clone(&self.global2)).unwrap();
             }
         }
 
@@ -486,7 +486,8 @@ impl<'a> Scenario<'a> {
 
         if let Some(script) = &self.post_script {
             for s in script {
-                s.execute(ctx, &self.global).unwrap();
+                // s.execute(ctx, &self.global).unwrap();
+                s.execute(ctx, Arc::clone(&self.global2)).unwrap();
             }
         }
 
@@ -536,9 +537,9 @@ impl Global {
         }
     }
 
-    pub fn insert_variable_value(&mut self, variable_name: &str, value: Value) {
-        self.variables_2.insert(variable_name.into(), value);
-    }
+    // pub fn insert_variable_value(&mut self, variable_name: &str, value: Value) {
+    //     self.variables_2.insert(variable_name.into(), value);
+    // }
 
     pub fn get_variable_value(&self, variable_name: &str) -> Option<Value> {
         for v in &self.variables {
