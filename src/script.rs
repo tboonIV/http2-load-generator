@@ -4,6 +4,8 @@ use crate::function;
 use crate::scenario::Global;
 use crate::variable::Value;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub struct Local {
     pub variables: HashMap<String, Value>,
@@ -93,9 +95,16 @@ impl Script {
         }
     }
 
-    pub fn execute2(&self, ctx: &mut ScriptContext, global: &mut Global) -> Result<(), Error> {
-        // Update global variable
-        self.execute(ctx, global)?;
+    pub fn execute2(
+        &self,
+        ctx: &mut ScriptContext,
+        global: Arc<Mutex<Global>>,
+    ) -> Result<(), Error> {
+        {
+            let global = global.lock().unwrap();
+            // Update global variable
+            self.execute(ctx, &global)?;
+        }
 
         // Get the return value
         let value = ctx
@@ -104,7 +113,10 @@ impl Script {
             .clone();
 
         // Update global variable
-        global.update_variable_value(self.return_var_name.as_str(), value);
+        {
+            let mut global = global.lock().unwrap();
+            global.update_variable_value(self.return_var_name.as_str(), value);
+        }
 
         Ok(())
     }
@@ -345,7 +357,7 @@ mod tests {
     // VAR1 = VAR1 + 10
     #[test]
     fn test_script_update_global_var() {
-        let mut global = Global {
+        let global = Global {
             variables: vec![],
             variables_2: {
                 let mut map = HashMap::new();
@@ -362,12 +374,15 @@ mod tests {
 
         let mut ctx = ScriptContext::new();
 
-        script.execute2(&mut ctx, &mut global).unwrap();
+        let global = Arc::new(Mutex::new(global));
+
+        script.execute2(&mut ctx, Arc::clone(&global)).unwrap();
 
         let var1 = ctx.get_variable("VAR1").unwrap();
         assert_eq!(var1.as_int(), 111);
 
         // Check global
+        let global = global.lock().unwrap();
         let var1 = global.get_variable_value_2("VAR1").unwrap();
         assert_eq!(var1.as_int(), 111);
     }

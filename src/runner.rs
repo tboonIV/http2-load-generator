@@ -11,6 +11,7 @@ use h2::client::SendRequest;
 use std::cell::RefCell;
 use std::error::Error;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Instant;
 use tokio::net::TcpStream;
 use tokio::sync::mpsc::channel;
@@ -26,7 +27,11 @@ pub struct Runner<'a> {
 }
 
 impl<'a> Runner<'a> {
-    pub fn new(config: RunnerConfig, global: &'a Global) -> Result<Runner<'a>, Box<dyn Error>> {
+    pub fn new(
+        config: RunnerConfig,
+        global: &'a Global,
+        global2: Arc<Mutex<Global>>,
+    ) -> Result<Runner<'a>, Box<dyn Error>> {
         // batch size
         let batch_size = match config.batch_size {
             config::BatchSize::Auto(_) => None,
@@ -56,7 +61,12 @@ impl<'a> Runner<'a> {
         }
         let mut subsequent_scenarios = vec![];
         for scenario_config in subsequent_scenarios_config.iter() {
-            subsequent_scenarios.push(Scenario::new(scenario_config, &config.base_url, &global));
+            subsequent_scenarios.push(Scenario::new(
+                scenario_config,
+                &config.base_url,
+                &global,
+                Arc::clone(&global2),
+            ));
         }
 
         let scenario_count = subsequent_scenarios_config.len() + 1;
@@ -64,7 +74,12 @@ impl<'a> Runner<'a> {
         Ok(Runner {
             param: RunParameter::new(config.target_rps, duration_s, batch_size, scenario_count),
             target_address: address.into(),
-            first_scenario: Scenario::new(first_scenario_config, &config.base_url, &global),
+            first_scenario: Scenario::new(
+                first_scenario_config,
+                &config.base_url,
+                &global,
+                global2,
+            ),
             subsequent_scenarios,
         })
     }

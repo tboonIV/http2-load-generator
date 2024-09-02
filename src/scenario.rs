@@ -81,6 +81,7 @@ pub struct Scenario<'a> {
     pub name: String,
     pub base_url: String,
     pub global: &'a Global,
+    pub global2: Arc<Mutex<Global>>,
     pub request: Request,
     pub response: Response,
     pub response_defines: Vec<ResponseDefine>,
@@ -90,7 +91,12 @@ pub struct Scenario<'a> {
 }
 
 impl<'a> Scenario<'a> {
-    pub fn new(config: &config::Scenario, base_url: &str, global: &'a Global) -> Self {
+    pub fn new(
+        config: &config::Scenario,
+        base_url: &str,
+        global: &'a Global,
+        global2: Arc<Mutex<Global>>,
+    ) -> Self {
         // Find variables in body and url
         let body_var_name =
             Scenario::find_variable_name(&config.request.body.clone().unwrap_or_default());
@@ -154,6 +160,7 @@ impl<'a> Scenario<'a> {
             name: config.name.clone(),
             base_url: base_url.into(),
             global,
+            global2,
             request,
             response,
             response_defines,
@@ -178,6 +185,7 @@ impl<'a> Scenario<'a> {
         name: &str,
         ctx: &ScriptContext,
         global: &Global,
+        global2: Arc<Mutex<Global>>,
     ) -> Result<Value, Box<dyn std::error::Error>> {
         // Check context local
         let value = ctx.get_variable(name);
@@ -190,6 +198,12 @@ impl<'a> Scenario<'a> {
         if let Some(value) = value {
             return Ok(value.clone());
         }
+
+        // let global2 = global2.lock().unwrap();
+        // let value = global2.get_variable_value_2(name);
+        // if let Some(value) = value {
+        //     return Ok(value.clone());
+        // }
 
         Err(format!("Variable '{}' not found", name).into())
     }
@@ -204,7 +218,8 @@ impl<'a> Scenario<'a> {
 
                 // Apply vairables replace in body
                 for name in &self.request.body_var_name {
-                    let value = self.get_value(&name, ctx, self.global)?;
+                    let value =
+                        self.get_value(&name, ctx, self.global, Arc::clone(&self.global2))?;
                     let value = match value {
                         Value::Int(v) => v.to_string(),
                         Value::String(v) => v,
@@ -222,7 +237,7 @@ impl<'a> Scenario<'a> {
 
             // Apply vairables replace in uri
             for name in &self.request.uri_var_name {
-                let value = self.get_value(&name, ctx, self.global)?;
+                let value = self.get_value(&name, ctx, self.global, Arc::clone(&self.global2))?;
                 let value = match value {
                     Value::Int(v) => v.to_string(),
                     Value::String(v) => v,
@@ -455,6 +470,7 @@ impl<'a> Scenario<'a> {
         if let Some(script) = &self.pre_script {
             for s in script {
                 s.execute(ctx, &self.global).unwrap();
+                // s.execute2(ctx, Arc::clone(&self.global2)).unwrap();
             }
         }
 
@@ -480,6 +496,7 @@ impl<'a> Scenario<'a> {
     }
 }
 
+#[derive(Clone)] // TODO Remove Clone laater
 pub struct Global {
     // TODO: Change to HashMap
     //
@@ -555,6 +572,7 @@ mod tests {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
+            global2: Arc::new(Mutex::new(global.clone())),
             request: Request {
                 uri: uri.into(),
                 uri_var_name,
@@ -599,6 +617,7 @@ mod tests {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
+            global2: Arc::new(Mutex::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -649,6 +668,7 @@ mod tests {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
+            global2: Arc::new(Mutex::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -765,6 +785,7 @@ mod tests {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
+            global2: Arc::new(Mutex::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -849,6 +870,7 @@ mod tests {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
             global: &global,
+            global2: Arc::new(Mutex::new(global.clone())),
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
