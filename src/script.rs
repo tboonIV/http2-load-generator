@@ -33,7 +33,7 @@ impl ScriptContext {
 
         // Then check global
         let global = self.global.read().unwrap();
-        let value = global.get_variable_value_2(name);
+        let value = global.get_variable_value(name);
         if let Some(value) = value {
             return Some(value.clone());
         }
@@ -66,7 +66,7 @@ impl ScriptVariable {
 
                 // Check global
                 let global = global.read().unwrap();
-                let value = global.get_variable_value_2(name);
+                let value = global.get_variable_value(name);
                 if let Some(value) = value {
                     return Ok(value.clone());
                 }
@@ -210,8 +210,7 @@ mod tests {
     #[test]
     fn test_script_now() {
         let global = Global {
-            variables: vec![],
-            variables_2: HashMap::new(),
+            variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
         let script = Script::new(config::ScriptVariable {
@@ -234,8 +233,7 @@ mod tests {
     #[test]
     fn test_script_random() {
         let global = Global {
-            variables: vec![],
-            variables_2: HashMap::new(),
+            variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
         let script = Script::new(config::ScriptVariable {
@@ -255,8 +253,7 @@ mod tests {
     #[test]
     fn test_script_copy() {
         let global = Global {
-            variables: vec![],
-            variables_2: HashMap::new(),
+            variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
         let script = Script::new(config::ScriptVariable {
@@ -277,8 +274,7 @@ mod tests {
     #[test]
     fn test_script_split() {
         let global = Global {
-            variables: vec![],
-            variables_2: HashMap::new(),
+            variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
         let script = Script::new(config::ScriptVariable {
@@ -300,8 +296,7 @@ mod tests {
     #[test]
     fn test_script_plus_constant() {
         let global = Global {
-            variables: vec![],
-            variables_2: HashMap::new(),
+            variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
         let script = Script::new(config::ScriptVariable {
@@ -321,8 +316,7 @@ mod tests {
     #[test]
     fn test_script_plus_constant_and_var() {
         let global = Global {
-            variables: vec![],
-            variables_2: HashMap::new(),
+            variables: HashMap::new(),
         };
         let global = Arc::new(RwLock::new(global));
         let script = Script::new(config::ScriptVariable {
@@ -351,8 +345,7 @@ mod tests {
         // }));
         let global = Global {
             // variables: vec![var1],
-            variables: vec![],
-            variables_2: {
+            variables: {
                 let mut map = HashMap::new();
                 map.insert("VAR1".to_string(), Value::Int(11));
                 map
@@ -382,8 +375,7 @@ mod tests {
     #[test]
     fn test_script_update_global_var() {
         let global = Global {
-            variables: vec![],
-            variables_2: {
+            variables: {
                 let mut map = HashMap::new();
                 map.insert("VAR1".to_string(), Value::Int(100));
                 map
@@ -404,7 +396,7 @@ mod tests {
 
         // Check global
         let global = global.read().unwrap();
-        let var1 = global.get_variable_value_2("VAR1").unwrap();
+        let var1 = global.get_variable_value("VAR1").unwrap();
         assert_eq!(var1.as_int(), 111);
     }
 }

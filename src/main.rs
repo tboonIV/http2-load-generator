@@ -17,8 +17,6 @@ use chrono::Local;
 use clap::Parser;
 use std::error::Error;
 use std::io::Write;
-use std::sync::Arc;
-use std::sync::RwLock;
 use std::thread;
 use tokio::sync::mpsc;
 
@@ -79,8 +77,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
 
             rt.block_on(async move {
                 let global = Global::new(config.runner.global.clone());
-                let global2 = Arc::new(RwLock::new(global.clone()));
-                let mut runner = Runner::new(config.runner, global2).unwrap();
+                let mut runner = Runner::new(config.runner, global).unwrap();
                 let report = runner.run().await.unwrap();
                 tx.send(report).await.unwrap();
             });

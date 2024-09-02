@@ -27,10 +27,9 @@ pub struct Runner {
 }
 
 impl Runner {
-    pub fn new(
-        config: RunnerConfig,
-        global2: Arc<RwLock<Global>>,
-    ) -> Result<Runner, Box<dyn Error>> {
+    pub fn new(config: RunnerConfig, global: Global) -> Result<Runner, Box<dyn Error>> {
+        let global = Arc::new(RwLock::new(global));
+
         // batch size
         let batch_size = match config.batch_size {
             config::BatchSize::Auto(_) => None,
@@ -63,7 +62,7 @@ impl Runner {
             subsequent_scenarios.push(Scenario::new(
                 scenario_config,
                 &config.base_url,
-                Arc::clone(&global2),
+                Arc::clone(&global),
             ));
         }
 
@@ -72,7 +71,7 @@ impl Runner {
         Ok(Runner {
             param: RunParameter::new(config.target_rps, duration_s, batch_size, scenario_count),
             target_address: address.into(),
-            first_scenario: Scenario::new(first_scenario_config, &config.base_url, global2),
+            first_scenario: Scenario::new(first_scenario_config, &config.base_url, global),
             subsequent_scenarios,
         })
     }
@@ -123,7 +122,7 @@ impl Runner {
                 log::debug!("Running scenario #0: {}", scenario.name);
 
                 // First Pre Script
-                let mut script_ctx = ScriptContext::new(Arc::clone(&scenario.global2));
+                let mut script_ctx = ScriptContext::new(Arc::clone(&scenario.global));
                 scenario.run_pre_script(&mut script_ctx);
 
                 // First HTTP request
