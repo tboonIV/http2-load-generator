@@ -454,7 +454,6 @@ impl Scenario {
     }
 }
 
-#[derive(Clone)] // TODO Remove Clone laater
 pub struct Global {
     pub variables: HashMap<String, Value>,
 }
@@ -493,7 +492,7 @@ mod tests {
         let global = Global {
             variables: HashMap::new(),
         };
-        let global = Arc::new(RwLock::new(global.clone()));
+        let global = Arc::new(RwLock::new(global));
 
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
