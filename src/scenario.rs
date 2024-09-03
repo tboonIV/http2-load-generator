@@ -5,15 +5,12 @@ use crate::http_api::HttpResponse;
 use crate::script;
 use crate::script::ScriptContext;
 use crate::variable::Value;
-use crate::variable::Variable;
 use http::Method;
 use http::StatusCode;
 use regex::Regex;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
 use std::time::Duration;
 
 #[derive(Clone)]
@@ -77,10 +74,9 @@ pub enum DefineFrom {
 }
 
 // #[derive(Clone)]
-pub struct Scenario<'a> {
+pub struct Scenario {
     pub name: String,
     pub base_url: String,
-    pub global: &'a Global,
     pub request: Request,
     pub response: Response,
     pub response_defines: Vec<ResponseDefine>,
@@ -89,8 +85,8 @@ pub struct Scenario<'a> {
     pub post_script: Option<Vec<script::Script>>,
 }
 
-impl<'a> Scenario<'a> {
-    pub fn new(config: &config::Scenario, base_url: &str, global: &'a Global) -> Self {
+impl Scenario {
+    pub fn new(config: &config::Scenario, base_url: &str) -> Self {
         // Find variables in body and url
         let body_var_name =
             Scenario::find_variable_name(&config.request.body.clone().unwrap_or_default());
@@ -153,7 +149,6 @@ impl<'a> Scenario<'a> {
         Scenario {
             name: config.name.clone(),
             base_url: base_url.into(),
-            global,
             request,
             response,
             response_defines,
@@ -173,27 +168,6 @@ impl<'a> Scenario<'a> {
         var_name
     }
 
-    fn get_value(
-        &self,
-        name: &str,
-        ctx: &ScriptContext,
-        global: &Global,
-    ) -> Result<Value, Box<dyn std::error::Error>> {
-        // Check context local
-        let value = ctx.get_variable(name);
-        if let Some(value) = value {
-            return Ok(value.clone());
-        }
-
-        // Check global
-        let value = global.get_variable_value(name);
-        if let Some(value) = value {
-            return Ok(value.clone());
-        }
-
-        Err(format!("Variable '{}' not found", name).into())
-    }
-
     pub fn new_request(
         &mut self,
         ctx: &ScriptContext,
@@ -204,7 +178,7 @@ impl<'a> Scenario<'a> {
 
                 // Apply vairables replace in body
                 for name in &self.request.body_var_name {
-                    let value = self.get_value(&name, ctx, self.global)?;
+                    let value = ctx.must_get_variable(&name)?;
                     let value = match value {
                         Value::Int(v) => v.to_string(),
                         Value::String(v) => v,
@@ -222,7 +196,7 @@ impl<'a> Scenario<'a> {
 
             // Apply vairables replace in uri
             for name in &self.request.uri_var_name {
-                let value = self.get_value(&name, ctx, self.global)?;
+                let value = ctx.must_get_variable(&name)?;
                 let value = match value {
                     Value::Int(v) => v.to_string(),
                     Value::String(v) => v,
@@ -454,14 +428,14 @@ impl<'a> Scenario<'a> {
 
         if let Some(script) = &self.pre_script {
             for s in script {
-                s.execute(ctx, &self.global).unwrap();
+                s.execute(ctx).unwrap();
             }
         }
 
         // print all variables from context
-        // for (k, v) in ctx.local.variables.iter() {
-        //     log::debug!("pre context variable: {} = {:?}", k, v);
-        // }
+        for (k, v) in ctx.local.variables.iter() {
+            log::debug!("pre context variable: {} = {:?}", k, v);
+        }
     }
 
     pub fn run_post_script(&self, ctx: &mut ScriptContext) {
@@ -469,56 +443,57 @@ impl<'a> Scenario<'a> {
 
         if let Some(script) = &self.post_script {
             for s in script {
-                s.execute(ctx, &self.global).unwrap();
+                s.execute(ctx).unwrap();
             }
         }
 
         // print all variables from context
-        // for (k, v) in ctx.local.variables.iter() {
-        //     log::debug!("post context variable: {} = {:?}", k, v);
-        // }
+        for (k, v) in ctx.local.variables.iter() {
+            log::debug!("post context variable: {} = {:?}", k, v);
+        }
     }
 }
 
 pub struct Global {
-    // TODO: Change to HashMap
-    pub variables: Vec<Arc<Mutex<Variable>>>,
+    pub variables: HashMap<String, Value>,
 }
 
 impl Global {
     pub fn new(configs: config::Global) -> Self {
-        let mut variables = vec![];
+        let mut variables = HashMap::new();
 
         for variable in configs.variables {
             let v = variable;
-            variables.push(Arc::new(Mutex::new(v)));
+            variables.insert(v.name.clone(), v.value);
         }
 
         Global { variables }
     }
 
-    // pub fn add_variable(&mut self, variable: Variable) {
-    //     self.variables.push(Arc::new(Mutex::new(variable)));
-    // }
+    pub fn get_variable_value(&self, variable_name: &str) -> Option<&Value> {
+        self.variables.get(variable_name)
+        // .map(|v| v.clone())
+    }
 
-    pub fn get_variable_value(&self, variable_name: &str) -> Option<Value> {
-        for v in &self.variables {
-            let variable = v.lock().unwrap();
-            if variable.name == variable_name {
-                return Some(variable.value.clone());
-            }
+    pub fn update_variable_value(&mut self, variable_name: &str, value: Value) {
+        if self.variables.contains_key(variable_name) {
+            self.variables.insert(variable_name.into(), value);
         }
-        None
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, RwLock};
 
     #[test]
     fn test_scenario_new_request() {
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: HashMap::new(),
+        };
+        let global = Arc::new(RwLock::new(global));
+
         let mut headers = HashMap::new();
         headers.insert("Content-Type".to_string(), "application/json".to_string());
 
@@ -530,7 +505,6 @@ mod tests {
         let mut scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: &global,
             request: Request {
                 uri: uri.into(),
                 uri_var_name,
@@ -551,7 +525,7 @@ mod tests {
             post_script: None,
         };
 
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(global);
         ctx.set_variable("var1", Value::Int(0));
         ctx.set_variable("var2", Value::Int(100));
         ctx.set_variable("foo_id", Value::String("1-2-3-4".into()));
@@ -567,11 +541,9 @@ mod tests {
 
     #[test]
     fn test_scenario_assert_response() {
-        let global = Global { variables: vec![] };
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: &global,
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -614,11 +586,9 @@ mod tests {
 
     #[test]
     fn test_scenario_check_response_with_body() {
-        let global = Global { variables: vec![] };
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: &global,
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -727,11 +697,9 @@ mod tests {
 
     #[test]
     fn test_scenario_check_response_with_nested_body() {
-        let global = Global { variables: vec![] };
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: &global,
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -807,12 +775,14 @@ mod tests {
             path: "$.ObjectId".into(),
             function: None,
         }];
-        let global = Global { variables: vec![] };
+        let global = Global {
+            variables: HashMap::new(),
+        };
+        let global = Arc::new(RwLock::new(global));
 
         let scenario = Scenario {
             name: "Scenario_1".into(),
             base_url: "http://localhost:8080".into(),
-            global: &global,
             request: Request {
                 uri: "/endpoint".into(),
                 uri_var_name: vec![],
@@ -833,7 +803,7 @@ mod tests {
             post_script: None,
         };
 
-        let mut ctx = ScriptContext::new();
+        let mut ctx = ScriptContext::new(global);
 
         scenario
             .from_response(
@@ -852,6 +822,6 @@ mod tests {
 
         let object_id = ctx.get_variable("ObjectId").unwrap();
 
-        assert_eq!(object_id, &Value::String("0-1-2-3".into()));
+        assert_eq!(object_id, Value::String("0-1-2-3".into()));
     }
 }
