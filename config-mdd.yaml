@@ -1,0 +1,69 @@
+log_level: Info
+parallel: 8
+runner:
+  target_rps: 420
+  duration: 300s
+  batch_size: Auto
+  base_url: http://localhost:8080
+  global:
+    variables:
+      # - name: OPTIONAL
+      #   value: 0
+  scenarios:
+    - name: TrafficRouteData
+      request:
+        method: POST
+        path: "/rsgateway/data/json/service/user?TrafficTrouteData=RT1D2"
+        headers:
+        - content-type: "application/json"
+        body: |
+          {
+              "$": "CreateUserSubscriptionAndDevice",
+              "User": {
+                  "$": "MtxRequestUserCreate",
+                  "ExternalId": "user-00010",
+                  "UserId": "user-00010",
+                  "FirstName": "Dummy",
+                  "LastName": "User",
+                  "ContactEmail": "00010@matrixx_test.com"
+              },
+              "RoleArray": [
+                  {
+                      "$": "MtxRoleData",
+                      "ExternalId": "Observer"
+                  }
+              ],
+              "Device": {
+                  "$": "MtxRequestDeviceCreate",
+                  "ExternalId": "device-00010",
+                  "DeviceType": "1",
+                  "Attr": {
+                      "$": "MtxMobileDeviceExtension",
+                      "Imsi": "00010",
+                      "AccessNumberArray": [
+                          "9000010"
+                      ]
+                  }
+              },
+              "Subscription": {
+                  "$": "MtxRequestSubscriptionCreate",
+                  "ExternalId": "subscription-00010",
+                  "Name": "Dummy Subscription",
+                  "BillingCycle": {
+                      "$": "MtxBillingCycleData",
+                      "BillingCycleId": 300,
+                      "DateOffset": 15,
+                      "ImmediateChange": "true"
+                  }
+              },
+              "SubscriptionOfferArray": [
+                  {
+                      "$": "MtxPurchasedOfferData",
+                      "ExternalId": "Sub-01"
+                  }
+              ]
+          }
+        timeout: 3s
+      response:
+        assert:
+          status: 200
