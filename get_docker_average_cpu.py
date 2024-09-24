@@ -47,4 +47,5 @@ def calculate_average_cpu_usage(container_name, duration=10):
 
 if __name__ == "__main__":
     container_name = "mdd-rest-gateway"
-    calculate_average_cpu_usage(container_name, duration=290)
+    container_name = "diameter-server"
+    calculate_average_cpu_usage(container_name, duration=20)
