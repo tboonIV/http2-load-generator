@@ -5,7 +5,7 @@ import json
 def calculate_average_cpu_usage(container_name, duration=10):
     client = docker.from_env()
     container = client.containers.get(container_name)
-    stats = container.stats(stream=True)
+    stats = container.stats(decode=False, stream=True)
 
     cpu_percentages = []
     start_time = time.time()
@@ -25,13 +25,11 @@ def calculate_average_cpu_usage(container_name, duration=10):
                 continue
             
             # CPU usage calculation
-            cpu_delta = stat["cpu_stats"]["cpu_usage"]["total_usage"] - stat["precpu_stats"]["cpu_usage"]["total_usage"]
-            system_cpu_delta = stat["cpu_stats"]["system_cpu_usage"] - stat["precpu_stats"]["system_cpu_usage"]
-            num_cpus = len(stat["cpu_stats"]["cpu_usage"].get("percpu_usage", []))
-
-            if system_cpu_delta > 0 and cpu_delta > 0:
-                cpu_percentage = (cpu_delta / system_cpu_delta) * num_cpus * 100.0
-                cpu_percentages.append(cpu_percentage)
+            cpu_usage = (stat['cpu_stats']['cpu_usage']['total_usage'] - stat['precpu_stats']['cpu_usage']['total_usage'])
+            cpu_system = (stat['cpu_stats']['system_cpu_usage'] - stat['precpu_stats']['system_cpu_usage'])
+            num_cpus = stat['cpu_stats']["online_cpus"]
+            cpu_perc = round((cpu_usage / cpu_system) * num_cpus * 100)
+            cpu_percentages.append(cpu_perc)
 
             time.sleep(1)  # Poll every 1 second
 
@@ -41,11 +39,12 @@ def calculate_average_cpu_usage(container_name, duration=10):
     # Calculate average CPU usage
     if cpu_percentages:
         average_cpu_usage = sum(cpu_percentages) / len(cpu_percentages)
-        print(f"Average CPU usage for container '{container_name}' over {duration} seconds: {average_cpu_usage:.2f}%")
+        print(f"Monitor container '{container_name}' over {duration} seconds")
+        print(f"Average CPU usage: {average_cpu_usage:.2f}%")
     else:
         print("No CPU usage data collected.")
 
 if __name__ == "__main__":
     container_name = "mdd-rest-gateway"
     container_name = "diameter-server"
-    calculate_average_cpu_usage(container_name, duration=20)
+    calculate_average_cpu_usage(container_name, duration=55)
